@@ -10,14 +10,19 @@ from dataclasses import replace
 from pathlib import Path
 
 from core.config import ForgeConfig
+from core.errors import ForgeServeError
 from core.types import (
     DataRecord,
     IngestOptions,
     MetadataFilter,
     SnapshotManifest,
+    TrainingExportRequest,
+    TrainingOptions,
+    TrainingRunResult,
     VersionExportRequest,
 )
 from ingest.pipeline import ingest_dataset
+from serve.training_runner import run_training
 from store.snapshot_store import SnapshotStore
 
 
@@ -58,6 +63,18 @@ class ForgeClient:
             Dataset handle.
         """
         return Dataset(dataset_name, self._store)
+
+    def train(self, options: TrainingOptions) -> TrainingRunResult:
+        """Train a model on a dataset version using PyTorch.
+
+        Args:
+            options: Training options.
+
+        Returns:
+            Training run artifact summary.
+        """
+        dataset = self.dataset(options.dataset_name)
+        return dataset.train(options)
 
     def with_data_root(self, data_root: str) -> "ForgeClient":
         """Clone the client with a different local data root.
@@ -138,3 +155,51 @@ class Dataset:
             output_uri=output_uri,
         )
         self._store.export_version_to_s3(request)
+
+    def export_training(
+        self,
+        output_dir: str,
+        version_id: str | None = None,
+        shard_size: int = 1000,
+        include_metadata: bool = False,
+    ) -> str:
+        """Export snapshot into local sharded training files.
+
+        Args:
+            output_dir: Local output directory for exported shards.
+            version_id: Optional version id, latest when omitted.
+            shard_size: Number of records per shard file.
+            include_metadata: Include metadata per exported row.
+
+        Returns:
+            Path to generated training manifest.
+        """
+        request = TrainingExportRequest(
+            dataset_name=self._dataset_name,
+            output_dir=output_dir,
+            version_id=version_id,
+            shard_size=shard_size,
+            include_metadata=include_metadata,
+        )
+        manifest_path = self._store.export_training_data(request)
+        return str(manifest_path)
+
+    def train(self, options: TrainingOptions) -> TrainingRunResult:
+        """Train a model on this dataset with default/custom loop.
+
+        Args:
+            options: Training options.
+
+        Returns:
+            Training run artifact summary.
+
+        Raises:
+            ForgeServeError: If dataset names mismatch.
+        """
+        if options.dataset_name != self._dataset_name:
+            raise ForgeServeError(
+                f"Training options dataset '{options.dataset_name}' does not match handle "
+                f"'{self._dataset_name}'."
+            )
+        _, records = self.load_records(options.version_id)
+        return run_training(records, options, random_seed=self._store.random_seed)

@@ -10,6 +10,17 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Mapping
 
+from core.constants import (
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_MAX_TOKEN_LENGTH,
+    DEFAULT_QUALITY_MODEL,
+    DEFAULT_TRAIN_EPOCHS,
+    DEFAULT_TRAIN_HIDDEN_DIM,
+    DEFAULT_TRAIN_LEARNING_RATE,
+    DEFAULT_TRAIN_NUM_LAYERS,
+    DEFAULT_TRAIN_VALIDATION_SPLIT,
+)
+
 
 @dataclass(frozen=True)
 class RecordMetadata:
@@ -74,11 +85,17 @@ class IngestOptions:
         dataset_name: Dataset name to create/update.
         source_uri: Input file path, directory, or S3 URI.
         output_uri: Optional output object-store URI for snapshot export.
+        resume: Resume from the latest matching ingest checkpoint.
+        incremental: Update an existing dataset from changed/new source records.
+        quality_model: Quality scoring model identifier.
     """
 
     dataset_name: str
     source_uri: str
     output_uri: str | None = None
+    resume: bool = False
+    incremental: bool = False
+    quality_model: str = DEFAULT_QUALITY_MODEL
 
 
 @dataclass(frozen=True)
@@ -142,6 +159,25 @@ class VersionExportRequest:
 
 
 @dataclass(frozen=True)
+class TrainingExportRequest:
+    """Request payload for training shard export.
+
+    Attributes:
+        dataset_name: Dataset identifier.
+        version_id: Optional version id; latest if omitted.
+        output_dir: Local output directory for shard files.
+        shard_size: Number of records per shard file.
+        include_metadata: Whether to include metadata in each JSONL row.
+    """
+
+    dataset_name: str
+    output_dir: str
+    version_id: str | None = None
+    shard_size: int = 1000
+    include_metadata: bool = False
+
+
+@dataclass(frozen=True)
 class DataLoaderOptions:
     """PyTorch serving options.
 
@@ -156,3 +192,68 @@ class DataLoaderOptions:
     shuffle: bool
     shuffle_buffer_size: int
     max_token_length: int
+
+
+@dataclass(frozen=True)
+class TrainingOptions:
+    """Training command options.
+
+    Attributes:
+        dataset_name: Dataset identifier to train on.
+        output_dir: Local output directory for artifacts.
+        version_id: Optional snapshot version id, latest if omitted.
+        architecture_path: Optional model architecture file path.
+        custom_loop_path: Optional custom loop Python file path.
+        epochs: Number of training epochs.
+        learning_rate: Optimizer learning rate.
+        batch_size: Training batch size.
+        max_token_length: Maximum tokenized sequence length.
+        validation_split: Fraction of records reserved for validation.
+        hidden_dim: Default model hidden dimension.
+        num_layers: Default model recurrent layer count.
+    """
+
+    dataset_name: str
+    output_dir: str
+    version_id: str | None = None
+    architecture_path: str | None = None
+    custom_loop_path: str | None = None
+    epochs: int = DEFAULT_TRAIN_EPOCHS
+    learning_rate: float = DEFAULT_TRAIN_LEARNING_RATE
+    batch_size: int = DEFAULT_BATCH_SIZE
+    max_token_length: int = DEFAULT_MAX_TOKEN_LENGTH
+    validation_split: float = DEFAULT_TRAIN_VALIDATION_SPLIT
+    hidden_dim: int = DEFAULT_TRAIN_HIDDEN_DIM
+    num_layers: int = DEFAULT_TRAIN_NUM_LAYERS
+
+
+@dataclass(frozen=True)
+class EpochMetric:
+    """One epoch metric row.
+
+    Attributes:
+        epoch: One-based epoch index.
+        train_loss: Average training loss.
+        validation_loss: Average validation loss.
+    """
+
+    epoch: int
+    train_loss: float
+    validation_loss: float
+
+
+@dataclass(frozen=True)
+class TrainingRunResult:
+    """Training command output artifacts.
+
+    Attributes:
+        model_path: Serialized model weights path.
+        history_path: Training history JSON path.
+        plot_path: Optional training plot path.
+        epochs_completed: Number of completed epochs.
+    """
+
+    model_path: str
+    history_path: str
+    plot_path: str | None
+    epochs_completed: int

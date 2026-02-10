@@ -16,7 +16,7 @@ dependencies = [
 s3 = ["boto3==1.37.0"]
 logging = ["structlog==25.1.0"]
 lance = ["lance==1.2.1", "pyarrow==19.0.0"]
-serve = ["torch==2.6.0"]
+serve = ["torch==2.6.0", "matplotlib==3.10.0"]
 
 [project.scripts]
 forge = "cli.main:main"
@@ -43,5 +43,5 @@ exclude = ["^tests/"]
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["boto3", "boto3.*", "structlog", "lance", "pyarrow", "torch"]
+module = ["boto3", "boto3.*", "structlog", "lance", "pyarrow", "torch", "matplotlib", "matplotlib.*"]
 ignore_missing_imports = true

@@ -1,0 +1,151 @@
+"""Model architecture loader for training runs.
+
+This module supports architecture definition via Python or JSON files.
+It enables overriding the default PyTorch training model.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+from pathlib import Path
+from typing import Any
+
+from core.errors import ForgeServeError
+from core.types import TrainingOptions
+from serve.default_model import build_default_model
+
+
+def load_training_model(
+    torch_module: Any,
+    options: TrainingOptions,
+    vocab_size: int,
+) -> Any:
+    """Load model from architecture config or default implementation.
+
+    Args:
+        torch_module: Imported torch module.
+        options: Training options.
+        vocab_size: Token vocabulary size.
+
+    Returns:
+        torch.nn.Module training model.
+
+    Raises:
+        ForgeServeError: If architecture file is invalid.
+    """
+    if options.architecture_path is None:
+        return build_default_model(
+            torch_module=torch_module,
+            vocab_size=vocab_size,
+            hidden_dim=options.hidden_dim,
+            num_layers=options.num_layers,
+        )
+    architecture_path = Path(options.architecture_path).expanduser().resolve()
+    if not architecture_path.exists():
+        raise ForgeServeError(
+            f"Architecture file not found at {architecture_path}. "
+            "Provide a valid --architecture-file path."
+        )
+    suffix = architecture_path.suffix.lower()
+    if suffix == ".py":
+        return _load_model_from_python(torch_module, architecture_path, vocab_size)
+    if suffix == ".json":
+        return _load_model_from_json(torch_module, architecture_path, options, vocab_size)
+    raise ForgeServeError(
+        f"Unsupported architecture format '{suffix}' at {architecture_path}. "
+        "Use .py or .json architecture files."
+    )
+
+
+def _load_model_from_python(
+    torch_module: Any,
+    architecture_path: Path,
+    vocab_size: int,
+) -> Any:
+    """Load model builder function from Python file."""
+    module = _load_python_module(architecture_path)
+    builder = getattr(module, "build_model", None)
+    if builder is None or not callable(builder):
+        raise ForgeServeError(
+            f"Invalid architecture file at {architecture_path}: missing callable build_model. "
+            "Define build_model(vocab_size, torch_module) in the file."
+        )
+    model = builder(vocab_size=vocab_size, torch_module=torch_module)
+    _validate_model_instance(torch_module, model, architecture_path)
+    return model
+
+
+def _load_model_from_json(
+    torch_module: Any,
+    architecture_path: Path,
+    options: TrainingOptions,
+    vocab_size: int,
+) -> Any:
+    """Load architecture from JSON config."""
+    payload = _read_json_file(architecture_path)
+    architecture_type = str(payload.get("architecture", "default"))
+    if architecture_type != "default":
+        raise ForgeServeError(
+            f"Unsupported architecture '{architecture_type}' in {architecture_path}. "
+            "Set architecture to 'default' for JSON-based configs."
+        )
+    hidden_dim = _read_config_int(payload, "hidden_dim", options.hidden_dim, architecture_path)
+    num_layers = _read_config_int(payload, "num_layers", options.num_layers, architecture_path)
+    return build_default_model(
+        torch_module=torch_module,
+        vocab_size=vocab_size,
+        hidden_dim=hidden_dim,
+        num_layers=num_layers,
+    )
+
+
+def _load_python_module(module_path: Path) -> Any:
+    """Load Python module from file path."""
+    spec = importlib.util.spec_from_file_location("forge_user_architecture", str(module_path))
+    if spec is None or spec.loader is None:
+        raise ForgeServeError(
+            f"Failed to load architecture module at {module_path}. Verify the file path and syntax."
+        )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _read_json_file(file_path: Path) -> dict[str, object]:
+    """Read JSON architecture config file."""
+    try:
+        payload = json.loads(file_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ForgeServeError(
+            f"Failed to parse architecture JSON at {file_path}: {error.msg}. "
+            "Fix the JSON file and retry training."
+        ) from error
+    if not isinstance(payload, dict):
+        raise ForgeServeError(f"Invalid architecture JSON at {file_path}: expected JSON object.")
+    return payload
+
+
+def _validate_model_instance(torch_module: Any, model: object, architecture_path: Path) -> None:
+    """Validate that loaded model is a torch module instance."""
+    if not isinstance(model, torch_module.nn.Module):
+        raise ForgeServeError(
+            f"Invalid build_model result in {architecture_path}: expected torch.nn.Module. "
+            "Return a torch.nn.Module instance from build_model."
+        )
+
+
+def _read_config_int(
+    payload: dict[str, object],
+    field_name: str,
+    default_value: int,
+    architecture_path: Path,
+) -> int:
+    """Read integer field from architecture payload."""
+    raw_value = payload.get(field_name, default_value)
+    if isinstance(raw_value, int):
+        return raw_value
+    raise ForgeServeError(
+        f"Invalid architecture field '{field_name}' in {architecture_path}: "
+        f"expected integer, got {type(raw_value).__name__}."
+    )

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Any, Iterable, Iterator
+from typing import Any, Iterable, cast
 
 from core.constants import (
     DEFAULT_BATCH_SIZE,
@@ -114,17 +114,20 @@ def create_pytorch_dataloader(
         ) from error
     batches = create_token_batches(records, options, random_seed)
     dataset = _TokenBatchDataset(batches)
-    return torch.utils.data.DataLoader(dataset, batch_size=None)
+    return torch.utils.data.DataLoader(cast(Any, dataset), batch_size=None)
 
 
 class _TokenBatchDataset:
-    """Small iterable dataset wrapping precomputed token batches."""
+    """Indexable dataset wrapper for precomputed token batches."""
 
     def __init__(self, batches: list[list[list[int]]]) -> None:
         self._batches = batches
 
-    def __iter__(self) -> Iterator[list[list[int]]]:
-        return iter(self._batches)
+    def __len__(self) -> int:
+        return len(self._batches)
+
+    def __getitem__(self, index: int) -> list[list[int]]:
+        return self._batches[index]
 
 
 def _shuffle_sequences(
