@@ -11,8 +11,7 @@ export function DashboardView(props: DashboardViewProps) {
   const { dashboard, showMetrics, showLanguageMix, showTopSources } = props;
   if (!dashboard) {
     return (
-      <section className="panel">
-        <h3>Dataset Dashboard</h3>
+      <section className="panel dashboard-panel">
         <p>Select a dataset to view quality and source composition.</p>
       </section>
     );
@@ -30,8 +29,7 @@ export function DashboardView(props: DashboardViewProps) {
       : "split-grid split-grid-single";
 
   return (
-    <section className="panel">
-      <h3>Dataset Dashboard</h3>
+    <section className="panel dashboard-panel">
       {showMetrics && (
         <div className="stats-grid">
           <MetricCard label="Version" value={dashboard.version_id} />
