@@ -1,0 +1,281 @@
+//! Background Forge command task store and execution worker helpers.
+
+use crate::models::{CommandTaskStart, CommandTaskStatus};
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+
+const MAX_TASKS: usize = 200;
+const MIN_ESTIMATE_SECONDS: u64 = 5;
+const MAX_RUNNING_PROGRESS: f64 = 99.0;
+
+#[derive(Clone)]
+pub struct CommandTaskStore {
+    inner: Arc<CommandTaskStoreInner>,
+}
+
+struct CommandTaskStoreInner {
+    tasks: Mutex<HashMap<String, TaskRecord>>,
+    duration_estimates: Mutex<HashMap<String, f64>>,
+    next_task_id: AtomicU64,
+}
+
+#[derive(Clone)]
+struct TaskRecord {
+    task_id: String,
+    command: String,
+    args: Vec<String>,
+    status: TaskLifecycleStatus,
+    started_at: Instant,
+    estimated_total_seconds: u64,
+    stdout: String,
+    stderr: String,
+    exit_code: Option<i32>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TaskLifecycleStatus {
+    Running,
+    Completed,
+    Failed,
+}
+
+impl Default for CommandTaskStore {
+    fn default() -> Self {
+        Self {
+            inner: Arc::new(CommandTaskStoreInner {
+                tasks: Mutex::new(HashMap::new()),
+                duration_estimates: Mutex::new(HashMap::new()),
+                next_task_id: AtomicU64::new(1),
+            }),
+        }
+    }
+}
+
+impl CommandTaskStore {
+    pub fn start_task(&self, data_root: String, args: Vec<String>) -> CommandTaskStart {
+        let command_name = args[0].clone();
+        let task_id = self.generate_task_id();
+        let estimated_total_seconds = self.estimate_for_command(&command_name);
+        self.insert_running_task(
+            task_id.clone(),
+            command_name.clone(),
+            args.clone(),
+            estimated_total_seconds,
+        );
+
+        let task_store = self.clone();
+        let task_id_for_thread = task_id.clone();
+        std::thread::spawn(move || {
+            task_store.execute_task(task_id_for_thread, data_root, command_name, args);
+        });
+
+        CommandTaskStart {
+            task_id,
+            estimated_total_seconds,
+        }
+    }
+
+    pub fn get_task_status(&self, task_id: &str) -> Result<CommandTaskStatus, String> {
+        let task = {
+            let tasks = self
+                .inner
+                .tasks
+                .lock()
+                .map_err(|_| "Task store lock poisoned".to_string())?;
+            tasks
+                .get(task_id)
+                .cloned()
+                .ok_or_else(|| format!("Unknown task id '{task_id}'"))?
+        };
+        Ok(task_to_status(task))
+    }
+
+    fn execute_task(&self, task_id: String, data_root: String, command_name: String, args: Vec<String>) {
+        let working_directory = workspace_root_dir();
+        let output = Command::new("forge")
+            .current_dir(working_directory)
+            .arg("--data-root")
+            .arg(&data_root)
+            .args(args)
+            .output();
+
+        let mut observed_elapsed_seconds = None;
+        if let Ok(mut tasks) = self.inner.tasks.lock() {
+            if let Some(task) = tasks.get_mut(&task_id) {
+                match output {
+                    Ok(process_output) => {
+                        let exit_code = process_output.status.code().unwrap_or(-1);
+                        task.exit_code = Some(exit_code);
+                        task.stdout = String::from_utf8_lossy(&process_output.stdout).to_string();
+                        task.stderr = String::from_utf8_lossy(&process_output.stderr).to_string();
+                        task.status = if exit_code == 0 {
+                            TaskLifecycleStatus::Completed
+                        } else {
+                            TaskLifecycleStatus::Failed
+                        };
+                    }
+                    Err(error) => {
+                        task.exit_code = Some(-1);
+                        task.status = TaskLifecycleStatus::Failed;
+                        task.stderr = format!("Failed to run forge command: {error}");
+                    }
+                }
+                observed_elapsed_seconds = Some(task.started_at.elapsed().as_secs_f64().max(1.0));
+            }
+        }
+
+        if let Some(observed_seconds) = observed_elapsed_seconds {
+            self.update_duration_estimate(&command_name, observed_seconds);
+        }
+    }
+
+    fn generate_task_id(&self) -> String {
+        let value = self.inner.next_task_id.fetch_add(1, Ordering::Relaxed);
+        format!("forge-task-{value}")
+    }
+
+    fn insert_running_task(
+        &self,
+        task_id: String,
+        command_name: String,
+        args: Vec<String>,
+        estimated_total_seconds: u64,
+    ) {
+        if let Ok(mut tasks) = self.inner.tasks.lock() {
+            tasks.insert(
+                task_id.clone(),
+                TaskRecord {
+                    task_id,
+                    command: command_name,
+                    args,
+                    status: TaskLifecycleStatus::Running,
+                    started_at: Instant::now(),
+                    estimated_total_seconds,
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    exit_code: None,
+                },
+            );
+            prune_finished_tasks(&mut tasks);
+        }
+    }
+
+    fn estimate_for_command(&self, command_name: &str) -> u64 {
+        let default_seconds = default_estimate_seconds(command_name);
+        let guard = self.inner.duration_estimates.lock();
+        if let Ok(estimates) = guard {
+            if let Some(average_seconds) = estimates.get(command_name) {
+                return average_seconds.round().max(MIN_ESTIMATE_SECONDS as f64) as u64;
+            }
+        }
+        default_seconds
+    }
+
+    fn update_duration_estimate(&self, command_name: &str, observed_seconds: f64) {
+        if let Ok(mut estimates) = self.inner.duration_estimates.lock() {
+            let next_average = if let Some(current_average) = estimates.get(command_name).copied() {
+                current_average * 0.7 + observed_seconds * 0.3
+            } else {
+                observed_seconds
+            };
+            estimates.insert(command_name.to_string(), next_average);
+        }
+    }
+}
+
+fn prune_finished_tasks(tasks: &mut HashMap<String, TaskRecord>) {
+    if tasks.len() <= MAX_TASKS {
+        return;
+    }
+    let mut removable: Vec<String> = tasks
+        .iter()
+        .filter(|(_, task)| task.status != TaskLifecycleStatus::Running)
+        .map(|(task_id, _)| task_id.clone())
+        .collect();
+    removable.sort();
+    let excess = tasks.len().saturating_sub(MAX_TASKS);
+    for task_id in removable.into_iter().take(excess) {
+        tasks.remove(&task_id);
+    }
+}
+
+fn task_to_status(task: TaskRecord) -> CommandTaskStatus {
+    let elapsed_seconds = task.started_at.elapsed().as_secs();
+    let status = task_status_name(task.status).to_string();
+    let remaining_seconds = if task.status == TaskLifecycleStatus::Running {
+        task.estimated_total_seconds.saturating_sub(elapsed_seconds)
+    } else {
+        0
+    };
+    let progress_percent = match task.status {
+        TaskLifecycleStatus::Running => {
+            running_progress_percent(elapsed_seconds, task.estimated_total_seconds)
+        }
+        TaskLifecycleStatus::Completed | TaskLifecycleStatus::Failed => 100.0,
+    };
+    CommandTaskStatus {
+        task_id: task.task_id,
+        status,
+        command: task.command,
+        args: task.args,
+        exit_code: task.exit_code,
+        stdout: task.stdout,
+        stderr: task.stderr,
+        elapsed_seconds,
+        estimated_total_seconds: task.estimated_total_seconds,
+        remaining_seconds,
+        progress_percent,
+    }
+}
+
+fn running_progress_percent(elapsed_seconds: u64, estimated_total_seconds: u64) -> f64 {
+    let estimate = estimated_total_seconds.max(MIN_ESTIMATE_SECONDS);
+    let raw = (elapsed_seconds as f64 / estimate as f64) * 100.0;
+    raw.clamp(1.0, MAX_RUNNING_PROGRESS)
+}
+
+fn task_status_name(status: TaskLifecycleStatus) -> &'static str {
+    match status {
+        TaskLifecycleStatus::Running => "running",
+        TaskLifecycleStatus::Completed => "completed",
+        TaskLifecycleStatus::Failed => "failed",
+    }
+}
+
+fn default_estimate_seconds(command_name: &str) -> u64 {
+    match command_name {
+        "ingest" => 60,
+        "filter" => 30,
+        "train" => 240,
+        "export-training" => 60,
+        "versions" => 8,
+        _ => 30,
+    }
+}
+
+fn workspace_root_dir() -> PathBuf {
+    // `CARGO_MANIFEST_DIR` points to `studio-app/src-tauri`.
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{default_estimate_seconds, running_progress_percent};
+
+    #[test]
+    fn running_progress_is_bounded_before_completion() {
+        let progress = running_progress_percent(1, 600);
+        assert!(progress >= 1.0 && progress < 100.0);
+    }
+
+    #[test]
+    fn default_estimate_returns_expected_values() {
+        assert_eq!(default_estimate_seconds("train"), 240);
+        assert_eq!(default_estimate_seconds("versions"), 8);
+        assert_eq!(default_estimate_seconds("unknown"), 30);
+    }
+}

@@ -3,6 +3,11 @@
 .forge*
 scripts
 
+
+### Outputs
+outputs/
+studio-app/src-tauri/runs/
+
 ### ------------------------
 ## PYTHON
 ### ------------------------

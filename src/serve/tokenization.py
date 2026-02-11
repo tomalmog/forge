@@ -27,15 +27,21 @@ class VocabularyTokenizer:
         """
         return cls(vocabulary={"<pad>": 0, "<unk>": 1})
 
-    def fit(self, texts: Iterable[str]) -> None:
+    def fit(self, texts: Iterable[str], max_vocabulary_size: int | None = None) -> None:
         """Fit tokenizer vocabulary from input texts.
 
         Args:
             texts: Input texts.
+            max_vocabulary_size: Optional max token count including special tokens.
         """
         for text in texts:
             for token in _split_tokens(text):
                 if token not in self.vocabulary:
+                    if (
+                        max_vocabulary_size is not None
+                        and len(self.vocabulary) >= max_vocabulary_size
+                    ):
+                        return
                     self.vocabulary[token] = len(self.vocabulary)
 
     def encode(self, text: str, max_token_length: int) -> list[int]:

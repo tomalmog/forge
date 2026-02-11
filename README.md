@@ -16,7 +16,7 @@ python3 -m pip install -e .
 forge ingest tests/fixtures/raw_valid --dataset demo
 forge versions --dataset demo
 forge filter --dataset demo --language en --min-quality 0.2
-forge train --dataset demo --output-dir ./runs/demo
+forge train --dataset demo --output-dir ./outputs/train/demo
 ```
 
 ## One-Command Smoke Test
@@ -49,7 +49,22 @@ scripts/run_training_smoke_test.sh
 Run default training loop:
 
 ```bash
-forge train --dataset demo --output-dir ./runs/demo
+forge train --dataset demo --output-dir ./outputs/train/demo
+```
+
+Run with configurable default architecture:
+
+```bash
+forge train \
+  --dataset demo \
+  --output-dir ./outputs/train/demo \
+  --hidden-dim 256 \
+  --num-layers 4 \
+  --attention-heads 8 \
+  --mlp-hidden-dim 1024 \
+  --mlp-layers 2 \
+  --dropout 0.1 \
+  --vocabulary-size 20000
 ```
 
 Use custom architecture file:
@@ -57,7 +72,7 @@ Use custom architecture file:
 ```bash
 forge train \
   --dataset demo \
-  --output-dir ./runs/demo \
+  --output-dir ./outputs/train/demo \
   --architecture-file ./architectures/my_model.py
 ```
 
@@ -66,12 +81,21 @@ Use custom training loop:
 ```bash
 forge train \
   --dataset demo \
-  --output-dir ./runs/demo \
+  --output-dir ./outputs/train/demo \
   --custom-loop-file ./loops/my_training_loop.py
+```
+
+Fine-tune from existing model weights:
+
+```bash
+forge train \
+  --dataset demo \
+  --output-dir ./outputs/train/demo-finetune \
+  --initial-weights-path ./outputs/train/demo/model.pt
 ```
 
 Artifacts written to output dir:
 
 - `model.pt` (trained model weights)
-- `history.json` (epoch train/validation loss)
+- `history.json` (batch-level training loss + epoch train/validation loss)
 - `training_curves.png` (loss graph; requires matplotlib)

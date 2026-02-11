@@ -7,6 +7,7 @@ It enables overriding the default PyTorch training model.
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import json
 from pathlib import Path
 from typing import Any
@@ -38,8 +39,7 @@ def load_training_model(
         return build_default_model(
             torch_module=torch_module,
             vocab_size=vocab_size,
-            hidden_dim=options.hidden_dim,
-            num_layers=options.num_layers,
+            options=options,
         )
     architecture_path = Path(options.architecture_path).expanduser().resolve()
     if not architecture_path.exists():
@@ -49,7 +49,7 @@ def load_training_model(
         )
     suffix = architecture_path.suffix.lower()
     if suffix == ".py":
-        return _load_model_from_python(torch_module, architecture_path, vocab_size)
+        return _load_model_from_python(torch_module, architecture_path, options, vocab_size)
     if suffix == ".json":
         return _load_model_from_json(torch_module, architecture_path, options, vocab_size)
     raise ForgeServeError(
@@ -61,6 +61,7 @@ def load_training_model(
 def _load_model_from_python(
     torch_module: Any,
     architecture_path: Path,
+    options: TrainingOptions,
     vocab_size: int,
 ) -> Any:
     """Load model builder function from Python file."""
@@ -69,9 +70,16 @@ def _load_model_from_python(
     if builder is None or not callable(builder):
         raise ForgeServeError(
             f"Invalid architecture file at {architecture_path}: missing callable build_model. "
-            "Define build_model(vocab_size, torch_module) in the file."
+            "Define build_model(vocab_size, torch_module[, options]) in the file."
         )
-    model = builder(vocab_size=vocab_size, torch_module=torch_module)
+    builder_signature = inspect.signature(builder)
+    builder_kwargs: dict[str, object] = {
+        "vocab_size": vocab_size,
+        "torch_module": torch_module,
+    }
+    if _accepts_options_argument(builder_signature):
+        builder_kwargs["options"] = options
+    model = builder(**builder_kwargs)
     _validate_model_instance(torch_module, model, architecture_path)
     return model
 
@@ -90,13 +98,40 @@ def _load_model_from_json(
             f"Unsupported architecture '{architecture_type}' in {architecture_path}. "
             "Set architecture to 'default' for JSON-based configs."
         )
-    hidden_dim = _read_config_int(payload, "hidden_dim", options.hidden_dim, architecture_path)
-    num_layers = _read_config_int(payload, "num_layers", options.num_layers, architecture_path)
+    training_options = TrainingOptions(
+        dataset_name=options.dataset_name,
+        output_dir=options.output_dir,
+        version_id=options.version_id,
+        architecture_path=options.architecture_path,
+        custom_loop_path=options.custom_loop_path,
+        epochs=options.epochs,
+        learning_rate=options.learning_rate,
+        batch_size=options.batch_size,
+        max_token_length=options.max_token_length,
+        validation_split=options.validation_split,
+        hidden_dim=_read_config_int(payload, "hidden_dim", options.hidden_dim, architecture_path),
+        num_layers=_read_config_int(payload, "num_layers", options.num_layers, architecture_path),
+        attention_heads=_read_config_int(
+            payload,
+            "attention_heads",
+            options.attention_heads,
+            architecture_path,
+        ),
+        mlp_hidden_dim=_read_config_int(
+            payload,
+            "mlp_hidden_dim",
+            options.mlp_hidden_dim,
+            architecture_path,
+        ),
+        mlp_layers=_read_config_int(payload, "mlp_layers", options.mlp_layers, architecture_path),
+        dropout=_read_config_float(payload, "dropout", options.dropout, architecture_path),
+        vocabulary_size=options.vocabulary_size,
+        initial_weights_path=options.initial_weights_path,
+    )
     return build_default_model(
         torch_module=torch_module,
         vocab_size=vocab_size,
-        hidden_dim=hidden_dim,
-        num_layers=num_layers,
+        options=training_options,
     )
 
 
@@ -149,3 +184,27 @@ def _read_config_int(
         f"Invalid architecture field '{field_name}' in {architecture_path}: "
         f"expected integer, got {type(raw_value).__name__}."
     )
+
+
+def _read_config_float(
+    payload: dict[str, object],
+    field_name: str,
+    default_value: float,
+    architecture_path: Path,
+) -> float:
+    """Read float field from architecture payload."""
+    raw_value = payload.get(field_name, default_value)
+    if isinstance(raw_value, (float, int)):
+        return float(raw_value)
+    raise ForgeServeError(
+        f"Invalid architecture field '{field_name}' in {architecture_path}: "
+        f"expected float, got {type(raw_value).__name__}."
+    )
+
+
+def _accepts_options_argument(builder_signature: inspect.Signature) -> bool:
+    """Check whether build_model can receive an options argument."""
+    for parameter in builder_signature.parameters.values():
+        if parameter.kind == inspect.Parameter.VAR_KEYWORD:
+            return True
+    return "options" in builder_signature.parameters

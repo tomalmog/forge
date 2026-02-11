@@ -10,18 +10,12 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Sequence
 
+from cli.train_command import add_train_command, run_train_command
 from core.config import ForgeConfig
 from core.constants import (
-    DEFAULT_BATCH_SIZE,
-    DEFAULT_MAX_TOKEN_LENGTH,
     DEFAULT_QUALITY_MODEL,
-    DEFAULT_TRAIN_EPOCHS,
-    DEFAULT_TRAIN_HIDDEN_DIM,
-    DEFAULT_TRAIN_LEARNING_RATE,
-    DEFAULT_TRAIN_NUM_LAYERS,
-    DEFAULT_TRAIN_VALIDATION_SPLIT,
 )
-from core.types import IngestOptions, MetadataFilter, TrainingOptions
+from core.types import IngestOptions, MetadataFilter
 from store.dataset_sdk import ForgeClient
 from transforms.quality_scoring import supported_quality_models
 
@@ -39,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_versions_command(subparsers)
     _add_filter_command(subparsers)
     _add_export_training_command(subparsers)
-    _add_train_command(subparsers)
+    add_train_command(subparsers)
     return parser
 
 
@@ -64,7 +58,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "export-training":
         return _run_export_training_command(client, args)
     if args.command == "train":
-        return _run_train_command(client, args)
+        return run_train_command(client, args)
     parser.error(f"Unsupported command: {args.command}")
     return 2
 
@@ -171,38 +165,6 @@ def _run_export_training_command(client: ForgeClient, args: argparse.Namespace) 
     return 0
 
 
-def _run_train_command(client: ForgeClient, args: argparse.Namespace) -> int:
-    """Handle train command.
-
-    Args:
-        client: SDK client.
-        args: Parsed CLI args.
-
-    Returns:
-        Exit code.
-    """
-    options = TrainingOptions(
-        dataset_name=args.dataset,
-        output_dir=args.output_dir,
-        version_id=args.version_id,
-        architecture_path=args.architecture_file,
-        custom_loop_path=args.custom_loop_file,
-        epochs=args.epochs,
-        learning_rate=args.learning_rate,
-        batch_size=args.batch_size,
-        max_token_length=args.max_token_length,
-        validation_split=args.validation_split,
-        hidden_dim=args.hidden_dim,
-        num_layers=args.num_layers,
-    )
-    result = client.train(options)
-    print(f"model_path={result.model_path}")
-    print(f"history_path={result.history_path}")
-    print(f"plot_path={result.plot_path or '-'}")
-    print(f"epochs_completed={result.epochs_completed}")
-    return 0
-
-
 def _add_ingest_command(subparsers: Any) -> None:
     """Register ingest subcommand."""
     parser = subparsers.add_parser("ingest", help="Ingest a local path or S3 prefix")
@@ -252,49 +214,4 @@ def _add_export_training_command(subparsers: Any) -> None:
         "--include-metadata",
         action="store_true",
         help="Include metadata fields in each shard row",
-    )
-
-
-def _add_train_command(subparsers: Any) -> None:
-    """Register train subcommand."""
-    parser = subparsers.add_parser(
-        "train",
-        help="Train a PyTorch language model on a dataset version",
-    )
-    parser.add_argument("--dataset", required=True, help="Dataset name")
-    parser.add_argument("--output-dir", required=True, help="Training artifact output directory")
-    parser.add_argument("--version-id", help="Optional specific version id")
-    parser.add_argument("--architecture-file", help="Optional .py or .json model architecture file")
-    parser.add_argument("--custom-loop-file", help="Optional .py custom training loop file")
-    parser.add_argument("--epochs", type=int, default=DEFAULT_TRAIN_EPOCHS, help="Training epochs")
-    parser.add_argument(
-        "--learning-rate",
-        type=float,
-        default=DEFAULT_TRAIN_LEARNING_RATE,
-        help="Optimizer learning rate",
-    )
-    parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE, help="Batch size")
-    parser.add_argument(
-        "--max-token-length",
-        type=int,
-        default=DEFAULT_MAX_TOKEN_LENGTH,
-        help="Maximum token length per record",
-    )
-    parser.add_argument(
-        "--validation-split",
-        type=float,
-        default=DEFAULT_TRAIN_VALIDATION_SPLIT,
-        help="Validation data fraction in [0,1)",
-    )
-    parser.add_argument(
-        "--hidden-dim",
-        type=int,
-        default=DEFAULT_TRAIN_HIDDEN_DIM,
-        help="Default model hidden size",
-    )
-    parser.add_argument(
-        "--num-layers",
-        type=int,
-        default=DEFAULT_TRAIN_NUM_LAYERS,
-        help="Default model layer count",
     )
