@@ -1,14 +1,13 @@
 .training-chart-stack {
     display: grid;
-    gap: 0;
-    margin-top: 8px;
+    gap: 12px;
+    margin-top: 12px;
 }
 
 .training-chart-card {
-    border: 0;
-    border-top: 1px solid #3a4150;
-    border-radius: 0;
-    background: transparent;
+    border: 1px solid #3a4150;
+    border-radius: 4px;
+    background: #303745;
     padding: 6px;
 }
 
@@ -24,7 +23,7 @@
     font-weight: 700;
     text-anchor: middle;
     fill: #d4d9e2;
-    font-family: "IBM Plex Sans", "Avenir Next", sans-serif;
+    font-family: "Space Grotesk", "Avenir Next", sans-serif;
 }
 
 .training-axis-line {
@@ -37,10 +36,14 @@
     stroke-width: 1;
 }
 
+.training-grid-line.vertical {
+    stroke-dasharray: 4 6;
+}
+
 .training-axis-tick {
     fill: #9ea7b7;
     font-size: 11px;
-    font-family: "IBM Plex Sans", "Avenir Next", sans-serif;
+    font-family: "IBM Plex Mono", monospace;
 }
 
 .training-axis-tick-y {
@@ -56,11 +59,11 @@
     font-size: 13px;
     font-weight: 600;
     text-anchor: middle;
-    font-family: "IBM Plex Sans", "Avenir Next", sans-serif;
+    font-family: "Space Grotesk", "Avenir Next", sans-serif;
 }
 
 .training-legend-label {
     fill: #c3cbd8;
     font-size: 12px;
-    font-family: "IBM Plex Sans", "Avenir Next", sans-serif;
+    font-family: "IBM Plex Mono", monospace;
 }

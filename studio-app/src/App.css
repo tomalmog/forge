@@ -1,24 +1,18 @@
-@font-face {
-    font-family: "IBM Plex Sans";
-    src: url("./assets/fonts/IBMPlexSans-Variable.ttf") format("truetype");
-    font-style: normal;
-    font-weight: 100 700;
-    font-display: swap;
-}
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap");
 
 :root {
-    --bg: #1f232a;
-    --bg-elevated: #232830;
-    --bg-strong: #292f39;
-    --bg-soft: #21262f;
-    --ink: #d8dde6;
-    --muted: #8d95a3;
-    --muted-strong: #a8b0bf;
-    --panel: #232830;
-    --line: #353c49;
-    --accent: #6e87b5;
-    --accent-strong: #5e76a2;
-    --warning: #c98a78;
+    --bg: #232833;
+    --bg-elevated: #2a303d;
+    --bg-strong: #303745;
+    --bg-soft: #272d39;
+    --ink: #d4d9e2;
+    --muted: #8f97a6;
+    --muted-strong: #aab2c0;
+    --panel: #2a303d;
+    --line: #3a4150;
+    --accent: #6f9ef8;
+    --accent-strong: #5a8fee;
+    --warning: #d98b76;
     --shadow: none;
 }
 
@@ -34,10 +28,10 @@ body,
 
 body {
     margin: 0;
-    font-family: "IBM Plex Sans", "Avenir Next", sans-serif;
+    font-family: "Space Grotesk", "Avenir Next", sans-serif;
     color: var(--ink);
     overflow: hidden;
-    background: linear-gradient(180deg, #232831 0%, #1f242c 100%);
+    background: linear-gradient(180deg, #252b37 0%, #222732 100%);
 }
 
 .app-root {
@@ -65,39 +59,29 @@ body {
     overflow-x: hidden;
 }
 
-.sidebar .list,
-.sidebar .section > .list-item {
-    margin-left: -16px;
-    margin-right: -16px;
-    width: calc(100% + 32px);
-}
-
 .workspace {
-    padding: 0;
+    padding: 16px;
     display: grid;
-    gap: 0;
+    gap: 18px;
     min-width: 0;
     height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
-    background: var(--bg-elevated);
 }
 
 .workspace-header {
-    background: transparent;
-    border: 0;
-    border-top: 1px solid var(--line);
-    border-radius: 0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line);
+    border-radius: 4px;
     box-shadow: var(--shadow);
-    padding: 12px 14px;
+    padding: 14px 16px;
 }
 
 .workspace-header h1 {
     margin: 0;
-    font-size: 1.3rem;
-    font-weight: 500;
+    font-size: 1.25rem;
     letter-spacing: 0.02em;
-    color: #eef2f9;
+    color: var(--ink);
 }
 
 .workspace-header p {
@@ -107,42 +91,35 @@ body {
 }
 
 .panel {
-    background: transparent;
-    border: 0;
-    border-top: 1px solid var(--line);
-    border-radius: 0;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
     box-shadow: var(--shadow);
-    padding: 12px 14px;
+    padding: 14px;
     min-width: 0;
 }
 
-.dashboard-panel {
-    padding-top: 0;
-    padding-bottom: 0;
-}
-
 .section {
-    margin-top: 12px;
+    margin-top: 18px;
 }
 
 h2,
 h3,
 h4 {
     margin: 0 0 10px;
-    color: #eef2f9;
-    font-weight: 500;
+    color: var(--muted-strong);
 }
 
 h2 {
-    font-size: 1.16rem;
+    font-size: 1.12rem;
 }
 
 h3 {
-    font-size: 1.08rem;
+    font-size: 1rem;
 }
 
 h4 {
-    font-size: 0.94rem;
+    font-size: 0.88rem;
 }
 
 .label,
@@ -175,7 +152,7 @@ input::placeholder {
     border-radius: 4px;
     background: var(--bg-strong);
     color: var(--ink);
-    font-weight: 500;
+    font-weight: 600;
     padding: 8px 10px;
     cursor: pointer;
     transition:
@@ -184,8 +161,8 @@ input::placeholder {
 }
 
 .button:hover {
-    background: #303741;
-    border-color: #485162;
+    background: #363e4e;
+    border-color: #4d5667;
 }
 
 .button:disabled,
@@ -200,7 +177,7 @@ input::placeholder {
     padding: 10px 12px;
     border-color: var(--accent);
     background: var(--accent);
-    color: #e9edf5;
+    color: #1b2230;
 }
 
 .button.action:hover {
@@ -220,72 +197,50 @@ select:focus-visible {
     margin: 0;
     padding: 0;
     display: grid;
-    gap: 0;
+    gap: 6px;
 }
 
 .list-item {
     width: 100%;
     text-align: left;
-    padding: 9px 8px;
-    border-radius: 0;
-    border: 0;
-    border-top: 1px solid var(--line);
-    background: transparent;
+    padding: 8px 9px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    background: var(--bg-strong);
     cursor: pointer;
     color: var(--ink);
     display: grid;
-    row-gap: 2px;
     transition:
         background-color 140ms ease,
         border-color 140ms ease;
 }
 
-.sidebar .list-item {
-    padding-left: 16px;
-    padding-right: 16px;
-}
-
 .list-item:hover {
-    background: #2e3440;
+    background: #363e4e;
 }
 
 .list-item.active {
-    border-top-color: #596376;
-    background: #37404d;
-    box-shadow: inset 2px 0 0 var(--accent);
+    border-color: var(--accent);
+    background: #32405f;
 }
 
 .list-item small {
     color: var(--muted);
-    margin-top: 1px;
-}
-
-.list-item.active small {
-    color: #d0d7e4;
 }
 
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    gap: 0;
-    border: 0;
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
-    background: transparent;
+    gap: 10px;
 }
 
 .metric-card {
-    background: rgba(255, 255, 255, 0.01);
-    border: 0;
-    border-left: 1px solid var(--line);
-    border-radius: 0;
-    padding: 10px 10px 10px 12px;
+    background: var(--bg-strong);
+    border: 1px solid #465061;
+    border-radius: 4px;
+    padding: 10px;
     display: grid;
     gap: 4px;
-}
-
-.stats-grid .metric-card:first-child {
-    border-left: 0;
 }
 
 .metric-card small {
@@ -293,33 +248,20 @@ select:focus-visible {
 }
 
 .metric-card strong {
-    font-size: 1.03rem;
-    font-weight: 500;
-    color: #eef2f9;
-    font-family: "IBM Plex Sans", "Avenir Next", sans-serif;
+    font-size: 0.95rem;
+    font-family: "IBM Plex Mono", monospace;
     word-break: break-all;
 }
 
 .split-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0;
-    margin-top: 10px;
-    border: 0;
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
+    gap: 14px;
+    margin-top: 14px;
 }
 
 .split-grid.split-grid-single {
     grid-template-columns: 1fr;
-}
-
-.split-grid > div {
-    padding: 10px 12px;
-}
-
-.split-grid > div + div {
-    border-left: 1px solid var(--line);
 }
 
 .bar-row {
@@ -349,24 +291,16 @@ select:focus-visible {
 
 .sample-list {
     display: grid;
-    gap: 0;
+    gap: 10px;
     max-height: 420px;
     overflow-y: auto;
-    border: 0;
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
 }
 
 .sample-card {
-    border: 0;
-    border-top: 1px solid var(--line);
-    border-radius: 0;
-    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--bg-strong);
     padding: 10px;
-}
-
-.sample-list .sample-card:first-child {
-    border-top: 0;
 }
 
 .sample-card header {
@@ -399,11 +333,11 @@ select:focus-visible {
 .palette {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
 }
 
 .palette-item {
-    border: 1px solid #424a59;
+    border: 1px solid #465061;
     border-radius: 4px;
     padding: 7px 12px;
     background: var(--bg-strong);
@@ -415,35 +349,27 @@ select:focus-visible {
 }
 
 .palette-item:hover {
-    background: #303741;
-    border-color: #4f5869;
+    background: #363e4e;
+    border-color: #4d5667;
 }
 
 .pipeline-canvas {
     margin-top: 10px;
     min-height: 120px;
-    border: 0;
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
-    border-radius: 0;
-    background: transparent;
-    padding: 0;
+    border: 1px dashed #495264;
+    border-radius: 4px;
+    background: #242b36;
+    padding: 10px;
     display: grid;
-    gap: 0;
-}
-
-.pipeline-canvas > p {
-    margin: 0;
-    padding: 10px 14px;
+    gap: 10px;
 }
 
 .progress-shell {
     margin-top: 12px;
-    border: 0;
-    border-top: 1px solid var(--line);
-    border-radius: 0;
-    background: transparent;
-    padding: 8px 0;
+    border: 1px solid #465061;
+    border-radius: 4px;
+    background: #252d3a;
+    padding: 10px;
     display: grid;
     gap: 8px;
 }
@@ -457,15 +383,13 @@ select:focus-visible {
 }
 
 .progress-head strong {
-    color: #eef2f9;
-    font-size: 0.9rem;
-    font-weight: 500;
+    color: var(--ink);
 }
 
 .progress-track {
     height: 11px;
     border-radius: 999px;
-    background: #2f3541;
+    background: #313a48;
     overflow: hidden;
 }
 
@@ -476,11 +400,11 @@ select:focus-visible {
 
 .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #6d82ad 0%, #5f7398 100%);
+    background: linear-gradient(90deg, #6f9ef8 0%, #5a86df 100%);
 }
 
 .progress-fill-step {
-    background: linear-gradient(90deg, #b38c64 0%, #9b7651 100%);
+    background: linear-gradient(90deg, #d19f6c 0%, #bd8450 100%);
 }
 
 .step-progress {
@@ -489,11 +413,10 @@ select:focus-visible {
 }
 
 .node-card {
-    border: 0;
-    border-top: 1px solid var(--line);
-    border-radius: 0;
-    padding: 10px 14px;
-    background: transparent;
+    border: 1px solid #465061;
+    border-radius: 4px;
+    padding: 10px;
+    background: var(--bg-strong);
     display: grid;
     gap: 8px;
 }
@@ -502,12 +425,6 @@ select:focus-visible {
     display: flex;
     justify-content: space-between;
     align-items: center;
-}
-
-.node-card header strong {
-    font-size: 1.04rem;
-    font-weight: 500;
-    color: #eef2f9;
 }
 
 .link-button {
@@ -538,7 +455,7 @@ select:focus-visible {
 }
 
 .curve-label {
-    font-family: "IBM Plex Sans", "Avenir Next", sans-serif;
+    font-family: "IBM Plex Mono", monospace;
     font-size: 11px;
     fill: #5f6a72;
 }
@@ -547,13 +464,13 @@ select:focus-visible {
     margin: 0;
     background: #202633;
     color: #dce2eb;
-    border-radius: 0;
-    border: 1px solid #313949;
+    border-radius: 4px;
+    border: 1px solid #374152;
     padding: 12px;
     max-height: 280px;
     overflow: auto;
     font-size: 0.8rem;
-    font-family: "IBM Plex Sans", "Avenir Next", sans-serif;
+    font-family: "IBM Plex Mono", monospace;
     line-height: 1.45;
     max-width: 100%;
     white-space: pre-wrap;
@@ -567,7 +484,7 @@ select:focus-visible {
     height: 100%;
     display: grid;
     grid-template-rows: auto 1fr;
-    gap: 0;
+    gap: 12px;
     padding: 16px 14px;
     overflow-y: auto;
     overflow-x: hidden;
@@ -594,28 +511,25 @@ select:focus-visible {
     border-radius: 4px;
     background: var(--bg-strong);
     color: var(--ink);
-    font-family: "IBM Plex Sans", "Avenir Next", sans-serif;
+    font-family: "IBM Plex Mono", monospace;
     font-size: 0.74rem;
-    font-weight: 500;
+    font-weight: 600;
     padding: 8px 10px;
     cursor: pointer;
 }
 
 .view-controls-list {
     display: grid;
-    gap: 0;
+    gap: 8px;
     align-content: start;
     min-width: 0;
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
 }
 
 .view-controls.open .view-control-row {
-    border: 0;
-    border-bottom: 1px solid var(--line);
-    border-radius: 0;
-    background: transparent;
-    padding: 8px 14px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--bg-strong);
+    padding: 8px;
 }
 
 .view-control-row {
@@ -639,56 +553,6 @@ select:focus-visible {
     height: 16px;
     margin: 0;
     accent-color: var(--accent);
-}
-
-.app-root strong {
-    font-weight: 500;
-}
-
-.workspace > :first-child {
-    border-top: 0;
-}
-
-.panel > .stats-grid:first-child,
-.panel > .split-grid:first-child,
-.panel > .sample-list:first-child,
-.panel > .pipeline-canvas:first-child,
-.panel > .training-chart-stack:first-child,
-.panel > .console:first-child {
-    border-top: 0;
-    margin-top: 0;
-}
-
-.panel > .stats-grid:last-child,
-.panel > .split-grid:last-child,
-.panel > .sample-list:last-child,
-.panel > .pipeline-canvas:last-child,
-.panel > .training-chart-stack:last-child,
-.panel > .console:last-child {
-    border-bottom: 0;
-    margin-bottom: 0;
-}
-
-.stats-grid + .split-grid {
-    border-top: 0;
-}
-
-.panel > .stats-grid,
-.panel > .split-grid,
-.panel > .sample-list,
-.panel > .pipeline-canvas,
-.panel > .progress-shell,
-.panel > .console,
-.panel > .training-chart-stack {
-    margin-left: -14px;
-    margin-right: -14px;
-    width: calc(100% + 28px);
-}
-
-.view-controls-list {
-    margin-left: -14px;
-    margin-right: -14px;
-    width: calc(100% + 28px);
 }
 
 @media (max-width: 1080px) {

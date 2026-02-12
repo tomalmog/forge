@@ -87,7 +87,7 @@ function buildCharts(
       series: [
         {
           label: "train loss",
-          color: "#6e87b5",
+          color: "#7aa2f7",
           values: batchLosses.map((row) => row.train_loss),
         },
       ],
@@ -101,12 +101,12 @@ function buildCharts(
     series: [
       {
         label: "train loss",
-        color: "#6e87b5",
+        color: "#7aa2f7",
         values: epochs.map((row) => row.train_loss),
       },
       {
         label: "validation loss",
-        color: "#b98f68",
+        color: "#d8a46d",
         values: epochs.map((row) => row.validation_loss),
       },
     ],
