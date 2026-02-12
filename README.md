@@ -64,6 +64,7 @@ forge train \
   --mlp-hidden-dim 1024 \
   --mlp-layers 2 \
   --dropout 0.1 \
+  --position-embedding-type learned \
   --vocabulary-size 20000
 ```
 
@@ -94,8 +95,20 @@ forge train \
   --initial-weights-path ./outputs/train/demo/model.pt
 ```
 
+Run a chat inference check against trained weights:
+
+```bash
+forge chat \
+  --dataset demo \
+  --model-path ./outputs/train/demo/model.pt \
+  --position-embedding-type learned \
+  --prompt "hello"
+```
+
 Artifacts written to output dir:
 
 - `model.pt` (trained model weights)
 - `history.json` (batch-level training loss + epoch train/validation loss)
 - `training_curves.png` (loss graph; requires matplotlib)
+- `training_config.json` (training architecture/config used for reproducible inference)
+- `tokenizer_vocab.json` (fitted tokenizer vocabulary reused by `forge chat`)

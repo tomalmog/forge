@@ -28,6 +28,7 @@ from serve.training_artifacts import (
     save_training_plot,
 )
 from serve.training_context import TrainingRuntimeContext
+from serve.training_metadata import save_tokenizer_vocabulary, save_training_config
 from serve.training_setup import fit_training_tokenizer, validate_training_options
 
 
@@ -90,6 +91,7 @@ def _build_runtime_context(
         loss_function=loss_function,
         train_batches=train_batches,
         validation_batches=validation_batches,
+        tokenizer=tokenizer,
         options=options,
         output_dir=output_dir,
         device=device,
@@ -103,6 +105,8 @@ def _persist_training_outputs(
 ) -> TrainingRunResult:
     """Persist model/history/plot outputs and return summary."""
     model_path = save_model_weights(context.output_dir, context.torch_module, context.model)
+    save_training_config(context.output_dir, context.options)
+    save_tokenizer_vocabulary(context.output_dir, context.tokenizer)
     history_path = save_training_history(context.output_dir, epoch_metrics, batch_metrics)
     plot_path = _try_save_plot(context.output_dir, epoch_metrics, batch_metrics)
     return TrainingRunResult(

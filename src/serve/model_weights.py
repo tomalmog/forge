@@ -32,6 +32,29 @@ def load_initial_weights(
     if initial_weights_path is None:
         return
     resolved_path = Path(initial_weights_path).expanduser().resolve()
+    model_state = read_model_state_dict(torch_module, str(resolved_path), device)
+    _apply_model_state(model, model_state, resolved_path)
+
+
+def read_model_state_dict(
+    torch_module: Any,
+    weights_path: str,
+    device: Any,
+) -> Mapping[str, object]:
+    """Read and normalize a model state dict from a checkpoint file.
+
+    Args:
+        torch_module: Imported torch module.
+        weights_path: Path to checkpoint file.
+        device: Resolved torch device.
+
+    Returns:
+        Parsed model state dictionary.
+
+    Raises:
+        ForgeServeError: If checkpoint cannot be read or parsed.
+    """
+    resolved_path = Path(weights_path).expanduser().resolve()
     if not resolved_path.exists():
         raise ForgeServeError(
             f"Initial weights not found at {resolved_path}. "
@@ -44,12 +67,16 @@ def load_initial_weights(
             f"Failed to load initial weights from {resolved_path}: {error}. "
             "Verify the checkpoint file is readable and valid."
         ) from error
-    model_state = _extract_model_state(checkpoint_payload, resolved_path)
+    return _extract_model_state(checkpoint_payload, resolved_path)
+
+
+def _apply_model_state(model: Any, model_state: Mapping[str, object], weights_path: Path) -> None:
+    """Apply checkpoint state dict to model with traceable error handling."""
     try:
         model.load_state_dict(model_state)
     except RuntimeError as error:
         raise ForgeServeError(
-            f"Failed to apply initial weights from {resolved_path}: {error}. "
+            f"Failed to apply initial weights from {weights_path}: {error}. "
             "Use matching architecture settings or train from scratch."
         ) from error
 

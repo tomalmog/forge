@@ -52,6 +52,7 @@ export function buildDefaultNode(type: PipelineNodeType): PipelineNode {
         mlp_hidden_dim: "1024",
         mlp_layers: "2",
         dropout: "0.1",
+        position_embedding_type: "learned",
         vocabulary_size: "",
         architecture_file: "",
         custom_loop_file: "",
@@ -83,6 +84,7 @@ export function buildDefaultNode(type: PipelineNodeType): PipelineNode {
         max_new_tokens: "80",
         temperature: "0.8",
         top_k: "40",
+        position_embedding_type: "learned",
       },
     };
   }
@@ -140,6 +142,11 @@ export function toForgeArgs(node: PipelineNode): string[] {
     appendOptionalArg(args, "--mlp-hidden-dim", node.config.mlp_hidden_dim);
     appendOptionalArg(args, "--mlp-layers", node.config.mlp_layers);
     appendOptionalArg(args, "--dropout", node.config.dropout);
+    appendOptionalArg(
+      args,
+      "--position-embedding-type",
+      node.config.position_embedding_type,
+    );
     appendOptionalArg(args, "--vocabulary-size", node.config.vocabulary_size);
     appendOptionalArg(
       args,
@@ -193,6 +200,11 @@ export function toForgeArgs(node: PipelineNode): string[] {
     appendOptionalArg(args, "--mlp-hidden-dim", node.config.mlp_hidden_dim);
     appendOptionalArg(args, "--mlp-layers", node.config.mlp_layers);
     appendOptionalArg(args, "--dropout", node.config.dropout);
+    appendOptionalArg(
+      args,
+      "--position-embedding-type",
+      node.config.position_embedding_type,
+    );
     return args;
   }
   return splitArgs(node.config.args);

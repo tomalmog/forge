@@ -6,6 +6,7 @@ used when no custom architecture is supplied by the user.
 
 from __future__ import annotations
 
+import math
 from typing import Any, cast
 
 from core.types import TrainingOptions
@@ -45,10 +46,21 @@ def _build_default_model_class(
         def __init__(self) -> None:
             super().__init__()
             self.embedding = torch_nn.Embedding(vocab_size, options.hidden_dim)
-            self.position_embedding = torch_nn.Embedding(
-                options.max_token_length,
-                options.hidden_dim,
-            )
+            if options.position_embedding_type == "learned":
+                self.position_embedding = torch_nn.Embedding(
+                    options.max_token_length,
+                    options.hidden_dim,
+                )
+            else:
+                self.register_buffer(
+                    "sinusoidal_position_encoding",
+                    _build_sinusoidal_position_encoding(
+                        torch_module,
+                        options.max_token_length,
+                        options.hidden_dim,
+                    ),
+                    persistent=False,
+                )
             encoder_layer = torch_nn.TransformerEncoderLayer(
                 d_model=options.hidden_dim,
                 nhead=options.attention_heads,
@@ -72,7 +84,8 @@ def _build_default_model_class(
         def forward(self, inputs: Any) -> Any:
             embedded = self.embedding(inputs)
             positions = _position_ids(torch_module, inputs)
-            hidden_states = embedded + self.position_embedding(positions)
+            positional = _resolve_position_embeddings(self, positions)
+            hidden_states = embedded + positional
             sequence_length = int(inputs.shape[1])
             mask = torch_module.triu(
                 torch_module.ones(sequence_length, sequence_length, device=inputs.device),
@@ -115,3 +128,34 @@ def _position_ids(torch_module: Any, inputs: Any) -> Any:
     sequence_length = int(inputs.shape[1])
     base_positions = torch_module.arange(sequence_length, device=inputs.device)
     return base_positions.unsqueeze(0).expand(batch_size, sequence_length)
+
+
+def _resolve_position_embeddings(model: Any, positions: Any) -> Any:
+    """Resolve positional embeddings for learned or sinusoidal mode."""
+    position_embedding = getattr(model, "position_embedding", None)
+    if position_embedding is not None:
+        return position_embedding(positions)
+    sinusoidal = getattr(model, "sinusoidal_position_encoding")
+    return sinusoidal.index_select(0, positions.reshape(-1)).reshape(
+        positions.shape[0],
+        positions.shape[1],
+        sinusoidal.shape[1],
+    )
+
+
+def _build_sinusoidal_position_encoding(
+    torch_module: Any,
+    max_token_length: int,
+    hidden_dim: int,
+) -> Any:
+    """Build static sinusoidal positional embeddings."""
+    positions = torch_module.arange(max_token_length, dtype=torch_module.float32).unsqueeze(1)
+    even_indexes = torch_module.arange(0, hidden_dim, 2, dtype=torch_module.float32)
+    scale = -math.log(10000.0) / max(hidden_dim, 1)
+    div_term = torch_module.exp(even_indexes * scale)
+    encoding = torch_module.zeros((max_token_length, hidden_dim), dtype=torch_module.float32)
+    encoding[:, 0::2] = torch_module.sin(positions * div_term)
+    odd_width = int(encoding[:, 1::2].shape[1])
+    if odd_width > 0:
+        encoding[:, 1::2] = torch_module.cos(positions * div_term[:odd_width])
+    return encoding

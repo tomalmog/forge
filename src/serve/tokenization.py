@@ -59,6 +59,21 @@ class VocabularyTokenizer:
             return encoded[:max_token_length]
         return encoded
 
+    def decode(self, token_ids: list[int]) -> str:
+        """Decode token ids back into text.
+
+        Args:
+            token_ids: Token ids to decode.
+
+        Returns:
+            Whitespace-joined decoded text.
+        """
+        inverse_vocabulary = {value: key for key, value in self.vocabulary.items()}
+        tokens = [
+            inverse_vocabulary.get(token_id, "<unk>") for token_id in token_ids if token_id != 0
+        ]
+        return " ".join(tokens)
+
 
 @dataclass(frozen=True)
 class SequenceBatch:

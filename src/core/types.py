@@ -8,11 +8,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Mapping
+from typing import Literal, Mapping
 
 from core.constants import (
     DEFAULT_BATCH_SIZE,
     DEFAULT_MAX_TOKEN_LENGTH,
+    DEFAULT_POSITION_EMBEDDING_TYPE,
     DEFAULT_QUALITY_MODEL,
     DEFAULT_TRAIN_ATTENTION_HEADS,
     DEFAULT_TRAIN_DROPOUT,
@@ -24,6 +25,8 @@ from core.constants import (
     DEFAULT_TRAIN_NUM_LAYERS,
     DEFAULT_TRAIN_VALIDATION_SPLIT,
 )
+
+PositionEmbeddingType = Literal["learned", "sinusoidal"]
 
 
 @dataclass(frozen=True)
@@ -219,6 +222,7 @@ class TrainingOptions:
         mlp_hidden_dim: Hidden width of default model feed-forward block.
         mlp_layers: Number of MLP layers before vocabulary projection.
         dropout: Dropout probability used by default model blocks.
+        position_embedding_type: Positional embedding mode for default model.
         vocabulary_size: Optional maximum tokenizer vocabulary size.
         initial_weights_path: Optional path to model weights for fine-tuning.
     """
@@ -239,6 +243,7 @@ class TrainingOptions:
     mlp_hidden_dim: int = DEFAULT_TRAIN_MLP_HIDDEN_DIM
     mlp_layers: int = DEFAULT_TRAIN_MLP_LAYERS
     dropout: float = DEFAULT_TRAIN_DROPOUT
+    position_embedding_type: PositionEmbeddingType = DEFAULT_POSITION_EMBEDDING_TYPE
     vocabulary_size: int | None = None
     initial_weights_path: str | None = None
 

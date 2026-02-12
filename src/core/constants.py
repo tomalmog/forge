@@ -7,6 +7,7 @@ Keeping values here avoids magic literals in business logic.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 DEFAULT_DATA_ROOT = Path(".forge")
 DATASETS_DIR_NAME = "datasets"
@@ -44,6 +45,13 @@ DEFAULT_TRAIN_ATTENTION_HEADS = 8
 DEFAULT_TRAIN_MLP_HIDDEN_DIM = 1024
 DEFAULT_TRAIN_MLP_LAYERS = 2
 DEFAULT_TRAIN_DROPOUT = 0.1
+DEFAULT_POSITION_EMBEDDING_TYPE: Literal["learned", "sinusoidal"] = "learned"
+SUPPORTED_POSITION_EMBEDDING_TYPES = ("learned", "sinusoidal")
 DEFAULT_TRAINED_MODEL_FILE_NAME = "model.pt"
 DEFAULT_TRAIN_HISTORY_FILE_NAME = "history.json"
 DEFAULT_TRAIN_PLOT_FILE_NAME = "training_curves.png"
+DEFAULT_TRAINING_CONFIG_FILE_NAME = "training_config.json"
+DEFAULT_TOKENIZER_VOCAB_FILE_NAME = "tokenizer_vocab.json"
+DEFAULT_CHAT_MAX_NEW_TOKENS = 80
+DEFAULT_CHAT_TEMPERATURE = 0.8
+DEFAULT_CHAT_TOP_K = 40

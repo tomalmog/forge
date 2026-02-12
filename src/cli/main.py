@@ -10,6 +10,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Sequence
 
+from cli.chat_command import add_chat_command, run_chat_command
 from cli.train_command import add_train_command, run_train_command
 from core.config import ForgeConfig
 from core.constants import (
@@ -34,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_filter_command(subparsers)
     _add_export_training_command(subparsers)
     add_train_command(subparsers)
+    add_chat_command(subparsers)
     return parser
 
 
@@ -59,6 +61,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_export_training_command(client, args)
     if args.command == "train":
         return run_train_command(client, args)
+    if args.command == "chat":
+        return run_chat_command(client, args)
     parser.error(f"Unsupported command: {args.command}")
     return 2
 

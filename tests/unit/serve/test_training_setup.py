@@ -44,3 +44,17 @@ def test_fit_training_tokenizer_applies_vocabulary_limit(tmp_path) -> None:
     tokenizer = fit_training_tokenizer(_build_records(), options)
 
     assert len(tokenizer.vocabulary) == 3
+
+
+def test_validate_training_options_rejects_unknown_position_embedding(tmp_path) -> None:
+    """Validation should fail for unsupported positional embedding type."""
+    options = TrainingOptions(
+        dataset_name="demo",
+        output_dir=str(tmp_path),
+        position_embedding_type="unknown",  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(ForgeServeError):
+        validate_training_options(options)
+
+    assert True

@@ -10,10 +10,10 @@ import importlib.util
 import inspect
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from core.errors import ForgeServeError
-from core.types import TrainingOptions
+from core.types import PositionEmbeddingType, TrainingOptions
 from serve.default_model import build_default_model
 
 
@@ -125,6 +125,12 @@ def _load_model_from_json(
         ),
         mlp_layers=_read_config_int(payload, "mlp_layers", options.mlp_layers, architecture_path),
         dropout=_read_config_float(payload, "dropout", options.dropout, architecture_path),
+        position_embedding_type=_read_position_embedding_type(
+            payload,
+            "position_embedding_type",
+            options.position_embedding_type,
+            architecture_path,
+        ),
         vocabulary_size=options.vocabulary_size,
         initial_weights_path=options.initial_weights_path,
     )
@@ -208,3 +214,21 @@ def _accepts_options_argument(builder_signature: inspect.Signature) -> bool:
         if parameter.kind == inspect.Parameter.VAR_KEYWORD:
             return True
     return "options" in builder_signature.parameters
+
+
+def _read_position_embedding_type(
+    payload: dict[str, object],
+    field_name: str,
+    default_value: PositionEmbeddingType,
+    architecture_path: Path,
+) -> PositionEmbeddingType:
+    """Read enumerated string field from architecture payload."""
+    supported_values = ("learned", "sinusoidal")
+    raw_value = payload.get(field_name, default_value)
+    if isinstance(raw_value, str) and raw_value in supported_values:
+        return cast(PositionEmbeddingType, raw_value)
+    supported_text = ", ".join(supported_values)
+    raise ForgeServeError(
+        f"Invalid architecture field '{field_name}' in {architecture_path}: "
+        f"expected one of [{supported_text}], got {raw_value!r}."
+    )

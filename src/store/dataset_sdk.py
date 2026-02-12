@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
+from core.chat_types import ChatOptions, ChatResult
 from core.config import ForgeConfig
 from core.errors import ForgeServeError
 from core.types import (
@@ -22,6 +23,7 @@ from core.types import (
     VersionExportRequest,
 )
 from ingest.pipeline import ingest_dataset
+from serve.chat_runner import run_chat
 from serve.training_runner import run_training
 from store.snapshot_store import SnapshotStore
 
@@ -75,6 +77,18 @@ class ForgeClient:
         """
         dataset = self.dataset(options.dataset_name)
         return dataset.train(options)
+
+    def chat(self, options: ChatOptions) -> ChatResult:
+        """Run chat inference against a trained model on a dataset.
+
+        Args:
+            options: Chat inference options.
+
+        Returns:
+            Generated response payload.
+        """
+        dataset = self.dataset(options.dataset_name)
+        return dataset.chat(options)
 
     def with_data_root(self, data_root: str) -> "ForgeClient":
         """Clone the client with a different local data root.
@@ -203,3 +217,23 @@ class Dataset:
             )
         _, records = self.load_records(options.version_id)
         return run_training(records, options, random_seed=self._store.random_seed)
+
+    def chat(self, options: ChatOptions) -> ChatResult:
+        """Run one chat completion on this dataset.
+
+        Args:
+            options: Chat inference options.
+
+        Returns:
+            Generated response payload.
+
+        Raises:
+            ForgeServeError: If dataset names mismatch.
+        """
+        if options.dataset_name != self._dataset_name:
+            raise ForgeServeError(
+                f"Chat options dataset '{options.dataset_name}' does not match handle "
+                f"'{self._dataset_name}'."
+            )
+        _, records = self.load_records(options.version_id)
+        return run_chat(records, options)

@@ -7,11 +7,12 @@ It keeps the top-level CLI module focused and within size constraints.
 from __future__ import annotations
 
 import argparse
-from typing import Any
+from typing import Any, cast
 
 from core.constants import (
     DEFAULT_BATCH_SIZE,
     DEFAULT_MAX_TOKEN_LENGTH,
+    DEFAULT_POSITION_EMBEDDING_TYPE,
     DEFAULT_TRAIN_ATTENTION_HEADS,
     DEFAULT_TRAIN_DROPOUT,
     DEFAULT_TRAIN_EPOCHS,
@@ -21,8 +22,9 @@ from core.constants import (
     DEFAULT_TRAIN_MLP_LAYERS,
     DEFAULT_TRAIN_NUM_LAYERS,
     DEFAULT_TRAIN_VALIDATION_SPLIT,
+    SUPPORTED_POSITION_EMBEDDING_TYPES,
 )
-from core.types import TrainingOptions
+from core.types import PositionEmbeddingType, TrainingOptions
 from store.dataset_sdk import ForgeClient
 
 
@@ -45,6 +47,10 @@ def run_train_command(client: ForgeClient, args: argparse.Namespace) -> int:
         mlp_hidden_dim=args.mlp_hidden_dim,
         mlp_layers=args.mlp_layers,
         dropout=args.dropout,
+        position_embedding_type=cast(
+            PositionEmbeddingType,
+            args.position_embedding_type,
+        ),
         vocabulary_size=args.vocabulary_size,
         initial_weights_path=args.initial_weights_path,
     )
@@ -121,4 +127,10 @@ def add_train_command(subparsers: Any) -> None:
         type=float,
         default=DEFAULT_TRAIN_DROPOUT,
         help="Dropout probability in default model",
+    )
+    parser.add_argument(
+        "--position-embedding-type",
+        default=DEFAULT_POSITION_EMBEDDING_TYPE,
+        choices=SUPPORTED_POSITION_EMBEDDING_TYPES,
+        help="Positional embedding mode for default model",
     )

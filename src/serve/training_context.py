@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from core.types import TrainingOptions
-from serve.tokenization import SequenceBatch
+from serve.tokenization import SequenceBatch, VocabularyTokenizer
 
 
 @dataclass
@@ -24,6 +24,7 @@ class TrainingRuntimeContext:
     loss_function: Any
     train_batches: list[SequenceBatch]
     validation_batches: list[SequenceBatch]
+    tokenizer: VocabularyTokenizer
     options: TrainingOptions
     output_dir: Path
     device: Any

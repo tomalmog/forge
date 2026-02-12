@@ -48,6 +48,7 @@ def test_load_training_model_reads_json_default_architecture(
         captured["mlp_hidden_dim"] = options.mlp_hidden_dim
         captured["mlp_layers"] = options.mlp_layers
         captured["dropout"] = options.dropout
+        captured["position_embedding_type"] = options.position_embedding_type
         return _FakeTorch.nn.Module()
 
     monkeypatch.setattr(architecture_loader, "build_default_model", _fake_build_default_model)
@@ -62,6 +63,7 @@ def test_load_training_model_reads_json_default_architecture(
                 "mlp_hidden_dim": 64,
                 "mlp_layers": 3,
                 "dropout": 0.2,
+                "position_embedding_type": "sinusoidal",
             }
         ),
         encoding="utf-8",
@@ -82,6 +84,7 @@ def test_load_training_model_reads_json_default_architecture(
         "mlp_hidden_dim": 64,
         "mlp_layers": 3,
         "dropout": 0.2,
+        "position_embedding_type": "sinusoidal",
     }
 
 

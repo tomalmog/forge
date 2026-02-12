@@ -61,6 +61,11 @@ def validate_training_options(options: TrainingOptions) -> None:
         raise ForgeServeError(f"Invalid mlp_layers {options.mlp_layers}: expected value >= 1.")
     if not 0 <= options.dropout < 1:
         raise ForgeServeError(f"Invalid dropout {options.dropout}: expected value in [0, 1).")
+    if options.position_embedding_type not in {"learned", "sinusoidal"}:
+        raise ForgeServeError(
+            "Invalid position_embedding_type "
+            f"{options.position_embedding_type!r}: expected 'learned' or 'sinusoidal'."
+        )
     if options.vocabulary_size is not None and options.vocabulary_size < 2:
         raise ForgeServeError(
             f"Invalid vocabulary_size {options.vocabulary_size}: expected value >= 2."
