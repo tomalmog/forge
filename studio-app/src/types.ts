@@ -87,5 +87,13 @@ export interface PipelineNode {
   id: string;
   type: PipelineNodeType;
   title: string;
+  canvas_x: number;
+  canvas_y: number;
   config: Record<string, string>;
+}
+
+export interface PipelineEdge {
+  id: string;
+  source_node_id: string;
+  target_node_id: string;
 }

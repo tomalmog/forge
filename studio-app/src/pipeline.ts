@@ -9,13 +9,19 @@ const DEFAULT_NODE_DURATION_SECONDS: Record<PipelineNodeType, number> = {
   custom: 30,
 };
 
-export function buildDefaultNode(type: PipelineNodeType): PipelineNode {
+export function buildDefaultNode(
+  type: PipelineNodeType,
+  nodeIndex: number = 0,
+): PipelineNode {
+  const position = computeDefaultNodePosition(nodeIndex);
   const id = `${type}-${Math.random().toString(16).slice(2, 10)}`;
   if (type === "ingest") {
     return {
       id,
       type,
       title: "Ingest",
+      canvas_x: position.x,
+      canvas_y: position.y,
       config: {
         source: "./datasets/my_source",
         dataset: "demo",
@@ -30,6 +36,8 @@ export function buildDefaultNode(type: PipelineNodeType): PipelineNode {
       id,
       type,
       title: "Filter",
+      canvas_x: position.x,
+      canvas_y: position.y,
       config: { dataset: "demo", language: "en", min_quality: "0.35" },
     };
   }
@@ -38,6 +46,8 @@ export function buildDefaultNode(type: PipelineNodeType): PipelineNode {
       id,
       type,
       title: "Train",
+      canvas_x: position.x,
+      canvas_y: position.y,
       config: {
         dataset: "demo",
         output_dir: "./outputs/train/demo",
@@ -65,6 +75,8 @@ export function buildDefaultNode(type: PipelineNodeType): PipelineNode {
       id,
       type,
       title: "Export Training",
+      canvas_x: position.x,
+      canvas_y: position.y,
       config: {
         dataset: "demo",
         output_dir: "./outputs/export/demo",
@@ -77,6 +89,8 @@ export function buildDefaultNode(type: PipelineNodeType): PipelineNode {
       id,
       type,
       title: "Chat",
+      canvas_x: position.x,
+      canvas_y: position.y,
       config: {
         dataset: "demo",
         model_path: "./outputs/train/demo/model.pt",
@@ -92,6 +106,8 @@ export function buildDefaultNode(type: PipelineNodeType): PipelineNode {
     id,
     type,
     title: "Custom Step",
+    canvas_x: position.x,
+    canvas_y: position.y,
     config: { args: "versions --dataset demo" },
   };
 }
@@ -238,4 +254,21 @@ function appendOptionalArg(
   if (value && value.trim().length > 0) {
     args.push(flag, value.trim());
   }
+}
+
+function computeDefaultNodePosition(nodeIndex: number): {
+  x: number;
+  y: number;
+} {
+  const columnCount = 3;
+  const xSpacing = 230;
+  const ySpacing = 160;
+  const baseX = 20;
+  const baseY = 20;
+  const row = Math.floor(nodeIndex / columnCount);
+  const column = nodeIndex % columnCount;
+  return {
+    x: baseX + column * xSpacing,
+    y: baseY + row * ySpacing,
+  };
 }

@@ -3,25 +3,17 @@ import {
   getDatasetDashboard,
   listDatasets,
   listVersions,
-  loadTrainingHistory,
   sampleRecords,
   versionDiff,
 } from "./api/studioApi";
 import { DatasetSidebar } from "./components/DatasetSidebar";
 import { ViewControlDrawer } from "./components/ViewControlDrawer";
 import { WorkspacePanels } from "./components/WorkspacePanels";
-import { buildDefaultNode } from "./pipeline";
-import {
-  DEFAULT_PIPELINE_PROGRESS_SNAPSHOT,
-  runPipelineInBackground,
-} from "./pipeline_run";
+import { usePipelineGraphState } from "./hooks/use_pipeline_graph_state";
 import { loadSessionState, saveSessionState } from "./session_state";
 import {
   DatasetDashboard,
-  PipelineNode,
-  PipelineNodeType,
   RecordSample,
-  TrainingHistory,
   VersionDiff,
   VersionSummary,
 } from "./types";
@@ -41,7 +33,6 @@ function App() {
     INITIAL_SESSION.selected_version,
   );
   const [dashboard, setDashboard] = useState<DatasetDashboard | null>(null);
-  const [samples, setSamples] = useState<RecordSample[]>([]);
   const [diff, setDiff] = useState<VersionDiff | null>(null);
   const [baseVersion, setBaseVersion] = useState<string | null>(
     INITIAL_SESSION.base_version,
@@ -49,21 +40,30 @@ function App() {
   const [targetVersion, setTargetVersion] = useState<string | null>(
     INITIAL_SESSION.target_version,
   );
-  const [nodes, setNodes] = useState<PipelineNode[]>(INITIAL_SESSION.nodes);
-  const [consoleOutput, setConsoleOutput] = useState(
-    INITIAL_SESSION.console_output,
-  );
-  const [historyPath, setHistoryPath] = useState(INITIAL_SESSION.history_path);
-  const [history, setHistory] = useState<TrainingHistory | null>(null);
+  const [samples, setSamples] = useState<RecordSample[]>([]);
   const [isViewControlsOpen, setIsViewControlsOpen] = useState(
     INITIAL_SESSION.is_view_controls_open,
   );
   const [panelVisibility, setPanelVisibility] = useState<PanelVisibility>(
     INITIAL_SESSION.panel_visibility,
   );
-  const [pipelineProgress, setPipelineProgress] = useState(
-    DEFAULT_PIPELINE_PROGRESS_SNAPSHOT,
-  );
+
+  const pipeline = usePipelineGraphState({
+    data_root: dataRoot,
+    initial_state: {
+      nodes: INITIAL_SESSION.nodes,
+      edges: INITIAL_SESSION.edges,
+      start_node_id: INITIAL_SESSION.start_node_id,
+      selected_node_id: INITIAL_SESSION.selected_node_id,
+      console_output: INITIAL_SESSION.console_output,
+      history_path: INITIAL_SESSION.history_path,
+    },
+    on_pipeline_complete: async () => {
+      if (selectedDataset) {
+        await refreshDatasetDetails(selectedDataset, selectedVersion);
+      }
+    },
+  });
 
   useEffect(() => {
     refreshDatasets().catch(logUiError);
@@ -83,9 +83,12 @@ function App() {
       selected_version: selectedVersion,
       base_version: baseVersion,
       target_version: targetVersion,
-      nodes,
-      console_output: consoleOutput,
-      history_path: historyPath,
+      nodes: pipeline.nodes,
+      edges: pipeline.edges,
+      start_node_id: pipeline.start_node_id,
+      selected_node_id: pipeline.selected_node_id,
+      console_output: pipeline.console_output,
+      history_path: pipeline.history_path,
       is_view_controls_open: isViewControlsOpen,
       panel_visibility: panelVisibility,
     });
@@ -95,9 +98,12 @@ function App() {
     selectedVersion,
     baseVersion,
     targetVersion,
-    nodes,
-    consoleOutput,
-    historyPath,
+    pipeline.nodes,
+    pipeline.edges,
+    pipeline.start_node_id,
+    pipeline.selected_node_id,
+    pipeline.console_output,
+    pipeline.history_path,
     isViewControlsOpen,
     panelVisibility,
   ]);
@@ -171,65 +177,12 @@ function App() {
     setDiff(result);
   }
 
-  function addNode(type: PipelineNodeType) {
-    setNodes((current) => [...current, buildDefaultNode(type)]);
-  }
-
-  function removeNode(nodeId: string) {
-    setNodes((current) => current.filter((node) => node.id !== nodeId));
-  }
-
-  function updateNode(nodeId: string, key: string, value: string) {
-    setNodes((current) =>
-      current.map((node) =>
-        node.id === nodeId
-          ? { ...node, config: { ...node.config, [key]: value } }
-          : node,
-      ),
-    );
-  }
-
-  async function runPipeline() {
-    if (nodes.length === 0) {
-      setConsoleOutput("Add at least one pipeline node before running.");
-      return;
-    }
-    setPipelineProgress({
-      ...DEFAULT_PIPELINE_PROGRESS_SNAPSHOT,
-      is_running: true,
-      current_step_label: "Preparing pipeline",
-    });
-    setConsoleOutput("Pipeline started...");
-    try {
-      const result = await runPipelineInBackground({
-        data_root: dataRoot,
-        nodes,
-        on_progress: setPipelineProgress,
-      });
-      setConsoleOutput(result.console_output);
-      if (result.history_path) {
-        setHistoryPath(result.history_path);
-      }
-      if (selectedDataset) {
-        await refreshDatasetDetails(selectedDataset, selectedVersion);
-      }
-    } catch (error) {
-      setPipelineProgress((current) => ({ ...current, is_running: false }));
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      setConsoleOutput((current) =>
-        `${current}\nPipeline failed: ${errorMessage}`.trim(),
-      );
-      throw error;
-    }
-  }
-
-  async function loadHistoryFromPath() {
-    if (!historyPath.trim()) {
-      return;
-    }
-    const row = await loadTrainingHistory(historyPath.trim());
-    setHistory(row);
+  function onDatasetSelect(datasetName: string) {
+    setSelectedDataset(datasetName);
+    setSelectedVersion(null);
+    setBaseVersion(null);
+    setTargetVersion(null);
+    setDiff(null);
   }
 
   function togglePanelVisibility(key: keyof PanelVisibility) {
@@ -248,13 +201,7 @@ function App() {
         selectedVersion={selectedVersion}
         onDataRootChange={setDataRoot}
         onRefresh={() => refreshDatasets().catch(logUiError)}
-        onDatasetSelect={(dataset) => {
-          setSelectedDataset(dataset);
-          setSelectedVersion(null);
-          setBaseVersion(null);
-          setTargetVersion(null);
-          setDiff(null);
-        }}
+        onDatasetSelect={onDatasetSelect}
         onVersionSelect={setSelectedVersion}
       />
       <WorkspacePanels
@@ -270,28 +217,36 @@ function App() {
         onTargetVersionChange={setTargetVersion}
         onComputeDiff={() => computeVersionDiff().catch(logUiError)}
         samples={samples}
-        nodes={nodes}
-        isPipelineRunning={pipelineProgress.is_running}
-        overallProgressPercent={pipelineProgress.overall_percent}
-        pipelineElapsedSeconds={pipelineProgress.pipeline_elapsed_seconds}
-        pipelineRemainingSeconds={pipelineProgress.pipeline_remaining_seconds}
-        currentStepLabel={pipelineProgress.current_step_label}
-        currentStepProgressPercent={pipelineProgress.current_step_percent}
+        nodes={pipeline.nodes}
+        edges={pipeline.edges}
+        startNodeId={pipeline.start_node_id}
+        selectedNodeId={pipeline.selected_node_id}
+        isPipelineRunning={pipeline.progress.is_running}
+        overallProgressPercent={pipeline.progress.overall_percent}
+        pipelineElapsedSeconds={pipeline.progress.pipeline_elapsed_seconds}
+        pipelineRemainingSeconds={pipeline.progress.pipeline_remaining_seconds}
+        currentStepLabel={pipeline.progress.current_step_label}
+        currentStepProgressPercent={pipeline.progress.current_step_percent}
         currentStepElapsedSeconds={
-          pipelineProgress.current_step_elapsed_seconds
+          pipeline.progress.current_step_elapsed_seconds
         }
         currentStepRemainingSeconds={
-          pipelineProgress.current_step_remaining_seconds
+          pipeline.progress.current_step_remaining_seconds
         }
-        onAddNode={addNode}
-        onRemoveNode={removeNode}
-        onUpdateNode={updateNode}
-        onRunPipeline={() => runPipeline().catch(logUiError)}
-        historyPath={historyPath}
-        history={history}
-        onHistoryPathChange={setHistoryPath}
-        onLoadHistory={() => loadHistoryFromPath().catch(logUiError)}
-        consoleOutput={consoleOutput}
+        onAddNode={pipeline.add_node}
+        onMoveNode={pipeline.move_node}
+        onSelectNode={pipeline.set_selected_node_id}
+        onSetStartNode={pipeline.set_start_node_id}
+        onAddEdge={pipeline.add_edge}
+        onRemoveEdge={pipeline.remove_edge}
+        onRemoveNode={pipeline.remove_node}
+        onUpdateNode={pipeline.update_node}
+        onRunPipeline={() => pipeline.run_pipeline().catch(logUiError)}
+        historyPath={pipeline.history_path}
+        history={pipeline.history}
+        onHistoryPathChange={pipeline.set_history_path}
+        onLoadHistory={() => pipeline.load_history().catch(logUiError)}
+        consoleOutput={pipeline.console_output}
       />
       <ViewControlDrawer
         isOpen={isViewControlsOpen}

@@ -7,6 +7,7 @@ import { TrainingCurvesView } from "./TrainingCurvesView";
 import { VersionDiffView } from "./VersionDiffView";
 import {
   DatasetDashboard,
+  PipelineEdge,
   PipelineNode,
   PipelineNodeType,
   RecordSample,
@@ -30,6 +31,9 @@ interface WorkspacePanelsProps {
   onComputeDiff: () => void;
   samples: RecordSample[];
   nodes: PipelineNode[];
+  edges: PipelineEdge[];
+  startNodeId: string | null;
+  selectedNodeId: string | null;
   isPipelineRunning: boolean;
   overallProgressPercent: number;
   pipelineElapsedSeconds: number;
@@ -38,7 +42,12 @@ interface WorkspacePanelsProps {
   currentStepProgressPercent: number;
   currentStepElapsedSeconds: number;
   currentStepRemainingSeconds: number;
-  onAddNode: (type: PipelineNodeType) => void;
+  onAddNode: (type: PipelineNodeType, x?: number, y?: number) => void;
+  onMoveNode: (nodeId: string, x: number, y: number) => void;
+  onSelectNode: (nodeId: string | null) => void;
+  onSetStartNode: (nodeId: string | null) => void;
+  onAddEdge: (sourceNodeId: string, targetNodeId: string) => void;
+  onRemoveEdge: (edgeId: string) => void;
   onRemoveNode: (nodeId: string) => void;
   onUpdateNode: (nodeId: string, key: string, value: string) => void;
   onRunPipeline: () => void;
@@ -87,6 +96,9 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
       {props.panelVisibility.pipeline_builder && (
         <PipelineCanvas
           nodes={props.nodes}
+          edges={props.edges}
+          startNodeId={props.startNodeId}
+          selectedNodeId={props.selectedNodeId}
           isRunning={props.isPipelineRunning}
           overallProgressPercent={props.overallProgressPercent}
           pipelineElapsedSeconds={props.pipelineElapsedSeconds}
@@ -96,6 +108,11 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
           currentStepElapsedSeconds={props.currentStepElapsedSeconds}
           currentStepRemainingSeconds={props.currentStepRemainingSeconds}
           onAddNode={props.onAddNode}
+          onMoveNode={props.onMoveNode}
+          onSelectNode={props.onSelectNode}
+          onSetStartNode={props.onSetStartNode}
+          onAddEdge={props.onAddEdge}
+          onRemoveEdge={props.onRemoveEdge}
           onRemoveNode={props.onRemoveNode}
           onUpdateNode={props.onUpdateNode}
           onRunPipeline={props.onRunPipeline}

@@ -1,16 +1,19 @@
-import { PipelineNode, PipelineNodeType } from "../types";
-
-const palette: Array<{ type: PipelineNodeType; title: string }> = [
-  { type: "ingest", title: "Ingest" },
-  { type: "filter", title: "Filter" },
-  { type: "train", title: "Train" },
-  { type: "export", title: "Export" },
-  { type: "chat", title: "Chat" },
-  { type: "custom", title: "Custom Step" },
-];
+import { PipelineEdge, PipelineNode, PipelineNodeType } from "../types";
+import { PipelineCanvasToolbar } from "./PipelineCanvasToolbar";
+import { PipelineEditorList } from "./PipelineEditorList";
+import { PipelineGraphCanvas } from "./PipelineGraphCanvas";
+import { PipelinePalette } from "./PipelinePalette";
+import { PipelineProgressView } from "./PipelineProgressView";
+import { PIPELINE_GRID_SIZE } from "./pipeline_canvas_constants";
+import { snapToGrid } from "./pipeline_canvas_math";
+import { usePipelineCanvasRuntime } from "./use_pipeline_canvas_runtime";
+import "./PipelineCanvas.css";
 
 interface PipelineCanvasProps {
   nodes: PipelineNode[];
+  edges: PipelineEdge[];
+  startNodeId: string | null;
+  selectedNodeId: string | null;
   isRunning: boolean;
   overallProgressPercent: number;
   pipelineElapsedSeconds: number;
@@ -19,99 +22,135 @@ interface PipelineCanvasProps {
   currentStepProgressPercent: number;
   currentStepElapsedSeconds: number;
   currentStepRemainingSeconds: number;
-  onAddNode: (type: PipelineNodeType) => void;
+  onAddNode: (type: PipelineNodeType, x?: number, y?: number) => void;
+  onMoveNode: (nodeId: string, x: number, y: number) => void;
+  onSelectNode: (nodeId: string | null) => void;
+  onSetStartNode: (nodeId: string | null) => void;
+  onAddEdge: (sourceNodeId: string, targetNodeId: string) => void;
+  onRemoveEdge: (edgeId: string) => void;
   onRemoveNode: (nodeId: string) => void;
   onUpdateNode: (nodeId: string, key: string, value: string) => void;
   onRunPipeline: () => void;
 }
 
 export function PipelineCanvas(props: PipelineCanvasProps) {
+  const runtime = usePipelineCanvasRuntime({
+    nodes: props.nodes,
+    edges: props.edges,
+    selectedNodeId: props.selectedNodeId,
+    onMoveNode: props.onMoveNode,
+    onAddEdge: props.onAddEdge,
+    onRemoveEdge: props.onRemoveEdge,
+    onRemoveNode: props.onRemoveNode,
+    onSelectNode: props.onSelectNode,
+  });
+
   return (
     <section className="panel">
       <h3>Visual Training Pipeline</h3>
       <p>
-        Drag components into the canvas, configure them, and run sequentially.
+        Build a graph with snap-to-grid nodes. Double-click nodes to open
+        editors and keep multiple editors open.
       </p>
 
-      <div className="palette">
-        {palette.map((entry) => (
-          <button
-            className="palette-item"
-            key={entry.type}
-            draggable
-            disabled={props.isRunning}
-            onDragStart={(event) =>
-              event.dataTransfer.setData("forge-node", entry.type)
+      <PipelinePalette
+        isRunning={props.isRunning}
+        onAddNode={(type) => props.onAddNode(type)}
+      />
+
+      <div className="pipeline-graph-shell">
+        <PipelineCanvasToolbar
+          activeTool={runtime.activeTool}
+          wireSourceNodeId={runtime.wireSourceNodeId}
+          onSetTool={(mode) => {
+            runtime.setActiveTool(mode);
+            if (mode !== "wire") {
+              runtime.setWireSourceNodeId(null);
             }
-            onClick={() => props.onAddNode(entry.type)}
-          >
-            {entry.title}
-          </button>
-        ))}
-      </div>
+            if (mode !== "erase") {
+              runtime.setIsErasing(false);
+            }
+          }}
+        />
 
-      {(props.isRunning || props.overallProgressPercent > 0) && (
-        <div className="progress-shell">
-          <div className="progress-head">
-            <strong>
-              Pipeline Progress {props.overallProgressPercent.toFixed(1)}%
-            </strong>
-            <span>
-              elapsed {formatDuration(props.pipelineElapsedSeconds)} | eta{" "}
-              {formatDuration(props.pipelineRemainingSeconds)}
-            </span>
-          </div>
-          <div className="progress-track">
-            <div
-              className="progress-fill"
-              style={{ width: `${props.overallProgressPercent}%` }}
-            />
-          </div>
-          <div className="step-progress">
-            <div className="progress-head">
-              <strong>{props.currentStepLabel}</strong>
-              <span>
-                step {props.currentStepProgressPercent.toFixed(1)}% | elapsed{" "}
-                {formatDuration(props.currentStepElapsedSeconds)} | eta{" "}
-                {formatDuration(props.currentStepRemainingSeconds)}
-              </span>
-            </div>
-            <div className="progress-track progress-track-step">
-              <div
-                className="progress-fill progress-fill-step"
-                style={{ width: `${props.currentStepProgressPercent}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div
-        className="pipeline-canvas"
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={(event) => {
-          const type = event.dataTransfer.getData(
-            "forge-node",
-          ) as PipelineNodeType;
-          if (type) {
-            props.onAddNode(type);
+        <PipelineGraphCanvas
+          graphRef={runtime.graphRef}
+          nodes={props.nodes}
+          edges={props.edges}
+          nodeMap={runtime.nodeMap}
+          startNodeId={props.startNodeId}
+          selectedNodeId={props.selectedNodeId}
+          wireSourceNodeId={runtime.wireSourceNodeId}
+          openEditorNodeIds={runtime.openEditorNodeIds}
+          activeTool={runtime.activeTool}
+          onBackgroundClick={() => props.onSelectNode(null)}
+          onGraphMouseDown={(event) => {
+            if (runtime.activeTool !== "erase") {
+              return;
+            }
+            runtime.setIsErasing(true);
+            runtime.eraseAtClientPoint(event.clientX, event.clientY);
+          }}
+          onGraphMouseMove={(event) => {
+            if (runtime.activeTool !== "erase" || !runtime.isErasing) {
+              return;
+            }
+            runtime.eraseAtClientPoint(event.clientX, event.clientY);
+          }}
+          onGraphMouseUp={() => runtime.setIsErasing(false)}
+          onGraphMouseLeave={() => runtime.setIsErasing(false)}
+          onCanvasDrop={(type, x, y) =>
+            props.onAddNode(
+              type,
+              Math.max(0, snapToGrid(x, PIPELINE_GRID_SIZE)),
+              Math.max(0, snapToGrid(y, PIPELINE_GRID_SIZE)),
+            )
           }
-        }}
-      >
-        {props.nodes.length === 0 ? (
-          <p>Drop a component here to start building the pipeline.</p>
-        ) : (
-          props.nodes.map((node, index) => (
-            <PipelineNodeCard
-              key={node.id}
-              node={node}
-              index={index}
-              onRemoveNode={props.onRemoveNode}
-              onUpdateNode={props.onUpdateNode}
-            />
-          ))
-        )}
+          onNodeMouseDown={(node, event) => {
+            event.stopPropagation();
+            const rect = event.currentTarget.getBoundingClientRect();
+            runtime.startNodeDrag(
+              node,
+              event.clientX,
+              event.clientY,
+              rect.left,
+              rect.top,
+            );
+          }}
+          onNodeClick={(node, event) => {
+            event.stopPropagation();
+            runtime.handleNodeClick(node);
+          }}
+          onNodeDoubleClick={(node, event) => {
+            event.stopPropagation();
+            runtime.handleNodeDoubleClick(node);
+          }}
+        />
       </div>
+
+      {props.isRunning || props.overallProgressPercent > 0 ? (
+        <PipelineProgressView
+          overallPercent={props.overallProgressPercent}
+          pipelineElapsedSeconds={props.pipelineElapsedSeconds}
+          pipelineRemainingSeconds={props.pipelineRemainingSeconds}
+          currentStepLabel={props.currentStepLabel}
+          currentStepPercent={props.currentStepProgressPercent}
+          currentStepElapsedSeconds={props.currentStepElapsedSeconds}
+          currentStepRemainingSeconds={props.currentStepRemainingSeconds}
+        />
+      ) : null}
+
+      <PipelineEditorList
+        nodes={runtime.openEditors}
+        startNodeId={props.startNodeId}
+        nodeMap={runtime.nodeMap}
+        edges={props.edges}
+        onCloseEditor={runtime.closeEditor}
+        onSetStartNode={props.onSetStartNode}
+        onRemoveNode={props.onRemoveNode}
+        onUpdateNode={props.onUpdateNode}
+        onRemoveEdge={props.onRemoveEdge}
+      />
 
       <button
         className="button action"
@@ -122,48 +161,4 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
       </button>
     </section>
   );
-}
-
-function PipelineNodeCard({
-  node,
-  index,
-  onRemoveNode,
-  onUpdateNode,
-}: {
-  node: PipelineNode;
-  index: number;
-  onRemoveNode: (nodeId: string) => void;
-  onUpdateNode: (nodeId: string, key: string, value: string) => void;
-}) {
-  const fieldRows = Object.entries(node.config);
-  return (
-    <article className="node-card">
-      <header>
-        <strong>
-          {index + 1}. {node.title}
-        </strong>
-        <button className="link-button" onClick={() => onRemoveNode(node.id)}>
-          Remove
-        </button>
-      </header>
-      {fieldRows.map(([key, value]) => (
-        <label key={key}>
-          {key}
-          <input
-            value={value}
-            onChange={(event) =>
-              onUpdateNode(node.id, key, event.currentTarget.value)
-            }
-          />
-        </label>
-      ))}
-    </article>
-  );
-}
-
-function formatDuration(totalSeconds: number): string {
-  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
-  const minutes = Math.floor(safeSeconds / 60);
-  const seconds = safeSeconds % 60;
-  return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
 }

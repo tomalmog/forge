@@ -1,4 +1,4 @@
-import { PipelineNode } from "./types";
+import { PipelineEdge, PipelineNode, PipelineNodeType } from "./types";
 import { DEFAULT_PANEL_VISIBILITY, PanelVisibility } from "./view_controls";
 
 const SESSION_STORAGE_KEY = "forge_studio_session_v1";
@@ -10,6 +10,9 @@ export interface StudioSessionState {
   base_version: string | null;
   target_version: string | null;
   nodes: PipelineNode[];
+  edges: PipelineEdge[];
+  start_node_id: string | null;
+  selected_node_id: string | null;
   console_output: string;
   history_path: string;
   is_view_controls_open: boolean;
@@ -23,6 +26,9 @@ export const DEFAULT_SESSION_STATE: StudioSessionState = {
   base_version: null,
   target_version: null,
   nodes: [],
+  edges: [],
+  start_node_id: null,
+  selected_node_id: null,
   console_output: "",
   history_path: "",
   is_view_controls_open: true,
@@ -45,7 +51,10 @@ export function loadSessionState(): StudioSessionState {
       selected_version: asNullableString(parsed.selected_version),
       base_version: asNullableString(parsed.base_version),
       target_version: asNullableString(parsed.target_version),
-      nodes: Array.isArray(parsed.nodes) ? parsed.nodes : [],
+      nodes: parseNodes(parsed.nodes),
+      edges: parseEdges(parsed.edges),
+      start_node_id: asNullableString(parsed.start_node_id),
+      selected_node_id: asNullableString(parsed.selected_node_id),
       console_output: asString(parsed.console_output, ""),
       history_path: asString(parsed.history_path, ""),
       is_view_controls_open: asBoolean(parsed.is_view_controls_open, true),
@@ -54,6 +63,64 @@ export function loadSessionState(): StudioSessionState {
   } catch {
     return DEFAULT_SESSION_STATE;
   }
+}
+
+function parseNodes(value: unknown): PipelineNode[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const rows: PipelineNode[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+    const payload = entry as Partial<PipelineNode>;
+    if (
+      typeof payload.id !== "string" ||
+      typeof payload.type !== "string" ||
+      typeof payload.title !== "string" ||
+      !payload.config ||
+      typeof payload.config !== "object"
+    ) {
+      continue;
+    }
+    const parsedNode: PipelineNode = {
+      id: payload.id,
+      type: asNodeType(payload.type, "custom"),
+      title: payload.title,
+      canvas_x: asNumber(payload.canvas_x, 20),
+      canvas_y: asNumber(payload.canvas_y, 20),
+      config: payload.config as Record<string, string>,
+    };
+    rows.push(parsedNode);
+  }
+  return rows;
+}
+
+function parseEdges(value: unknown): PipelineEdge[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const rows: PipelineEdge[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+    const payload = entry as Partial<PipelineEdge>;
+    if (
+      typeof payload.id !== "string" ||
+      typeof payload.source_node_id !== "string" ||
+      typeof payload.target_node_id !== "string"
+    ) {
+      continue;
+    }
+    rows.push({
+      id: payload.id,
+      source_node_id: payload.source_node_id,
+      target_node_id: payload.target_node_id,
+    });
+  }
+  return rows;
 }
 
 export function saveSessionState(sessionState: StudioSessionState): void {
@@ -79,6 +146,27 @@ function asNullableString(value: unknown): string | null {
 
 function asBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function asNumber(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function asNodeType(
+  value: unknown,
+  fallback: PipelineNodeType,
+): PipelineNodeType {
+  if (
+    value === "ingest" ||
+    value === "filter" ||
+    value === "train" ||
+    value === "export" ||
+    value === "chat" ||
+    value === "custom"
+  ) {
+    return value;
+  }
+  return fallback;
 }
 
 function parsePanelVisibility(value: unknown): PanelVisibility {
