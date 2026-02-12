@@ -89,11 +89,13 @@ export async function exportPipelineCanvas(
   nodes: PipelineNode[],
   edges: PipelineEdge[],
   startNodeId: string | null,
+  outputPath: string | null,
 ): Promise<PipelineCanvasExportResult> {
   return invoke<PipelineCanvasExportResult>("export_pipeline_canvas", {
     dataRoot,
     nodes,
     edges,
     startNodeId,
+    outputPath,
   });
 }

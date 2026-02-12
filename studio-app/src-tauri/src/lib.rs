@@ -7,6 +7,7 @@ mod models;
 pub fn run() {
     tauri::Builder::default()
         .manage(commands::forge_task_store::CommandTaskStore::default())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             commands::canvas_export::export_pipeline_canvas,

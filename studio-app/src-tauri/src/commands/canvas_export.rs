@@ -17,11 +17,11 @@ pub fn export_pipeline_canvas(
     nodes: Vec<PipelineNodeSnapshot>,
     edges: Vec<PipelineEdgeSnapshot>,
     start_node_id: Option<String>,
+    output_path: Option<String>,
 ) -> Result<PipelineCanvasExportResult, String> {
     validate_canvas_payload(&nodes, &edges)?;
-    let export_dir = Path::new(&data_root).join(CANVAS_EXPORT_DIR);
-    create_export_dir(&export_dir)?;
-    let output_path = build_output_path(&export_dir)?;
+    let output_path = resolve_output_path(&data_root, output_path)?;
+    create_parent_dir(&output_path)?;
     let payload = build_canvas_payload(nodes, edges, start_node_id)?;
     write_export_file(&output_path, &payload)?;
     Ok(PipelineCanvasExportResult {
@@ -46,21 +46,51 @@ fn validate_canvas_payload(
     Ok(())
 }
 
-fn create_export_dir(export_dir: &Path) -> Result<(), String> {
-    fs::create_dir_all(export_dir).map_err(|error| {
+fn create_parent_dir(output_path: &Path) -> Result<(), String> {
+    let Some(parent_dir) = output_path.parent() else {
+        return Err(format!(
+            "Canvas export failed: output path {} is invalid.",
+            output_path.display()
+        ));
+    };
+    fs::create_dir_all(parent_dir).map_err(|error| {
         format!(
             "Canvas export failed: could not create export directory {}: {error}",
-            export_dir.display()
+            parent_dir.display()
         )
     })
 }
 
-fn build_output_path(export_dir: &Path) -> Result<PathBuf, String> {
+fn build_default_output_path(export_dir: &Path) -> Result<PathBuf, String> {
     let epoch_seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|error| format!("Canvas export failed: system clock is invalid: {error}"))?
         .as_secs();
     Ok(export_dir.join(format!("forge-canvas-{epoch_seconds}.json")))
+}
+
+fn resolve_output_path(data_root: &str, output_path: Option<String>) -> Result<PathBuf, String> {
+    if let Some(path_value) = output_path {
+        let trimmed_path = path_value.trim();
+        if !trimmed_path.is_empty() {
+            let requested_path = PathBuf::from(trimmed_path);
+            let normalized_path = if requested_path.is_absolute() {
+                requested_path
+            } else {
+                Path::new(data_root).join(requested_path)
+            };
+            return Ok(append_json_extension_if_missing(normalized_path));
+        }
+    }
+    let export_dir = Path::new(data_root).join(CANVAS_EXPORT_DIR);
+    build_default_output_path(&export_dir)
+}
+
+fn append_json_extension_if_missing(mut output_path: PathBuf) -> PathBuf {
+    if output_path.extension().is_none() {
+        output_path.set_extension("json");
+    }
+    output_path
 }
 
 fn build_canvas_payload(

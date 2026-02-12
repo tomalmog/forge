@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { save } from "@tauri-apps/plugin-dialog";
 import { exportPipelineCanvas } from "../api/studioApi";
 import { PipelineEdge, PipelineNode, PipelineNodeType } from "../types";
 import { PipelineCanvasToolbar } from "./PipelineCanvasToolbar";
@@ -195,11 +196,25 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
 
   async function handleExportCanvas(): Promise<void> {
     try {
+      const selectedPath = await save({
+        defaultPath: buildDefaultCanvasExportPath(props.dataRoot),
+        filters: [
+          {
+            name: "JSON",
+            extensions: ["json"],
+          },
+        ],
+      });
+      if (!selectedPath) {
+        setCanvasActionMessage("Canvas export cancelled.");
+        return;
+      }
       const result = await exportPipelineCanvas(
         props.dataRoot,
         props.nodes,
         props.edges,
         props.startNodeId,
+        selectedPath,
       );
       setCanvasActionMessage(`Canvas exported to ${result.output_path}`);
     } catch (error) {
@@ -207,4 +222,10 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
       setCanvasActionMessage(`Canvas export failed: ${message}`);
     }
   }
+}
+
+function buildDefaultCanvasExportPath(dataRoot: string): string {
+  const now = new Date();
+  const timestamp = now.toISOString().replace(/[:.]/g, "-");
+  return `${dataRoot}/outputs/canvas/forge-canvas-${timestamp}.json`;
 }
