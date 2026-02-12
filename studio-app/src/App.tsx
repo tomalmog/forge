@@ -259,6 +259,8 @@ function App() {
       />
       <WorkspacePanels
         panelVisibility={panelVisibility}
+        dataRoot={dataRoot}
+        selectedDataset={selectedDataset}
         dashboard={dashboard}
         versions={versions}
         baseVersion={baseVersion}

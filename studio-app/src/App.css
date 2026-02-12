@@ -330,6 +330,70 @@ select:focus-visible {
     align-items: end;
 }
 
+.chat-config-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.chat-thread {
+    margin-top: 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #1d252d;
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.chat-empty {
+    margin: 0;
+    padding: 12px;
+    color: var(--muted);
+}
+
+.chat-message {
+    padding: 10px 12px;
+    border-top: 1px solid #2f3945;
+}
+
+.chat-message:first-child {
+    border-top: 0;
+}
+
+.chat-message header {
+    color: var(--muted);
+    font-size: 0.75rem;
+    margin-bottom: 4px;
+}
+
+.chat-message.user {
+    background: #263248;
+}
+
+.chat-message.assistant {
+    background: #202933;
+}
+
+.chat-message p {
+    margin: 0;
+    line-height: 1.4;
+    white-space: pre-wrap;
+}
+
+.chat-input-row {
+    margin-top: 10px;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 10px;
+    align-items: center;
+}
+
+.chat-error {
+    margin: 10px 0 0;
+    color: var(--warning);
+}
+
 .palette {
     display: flex;
     flex-wrap: wrap;
@@ -581,7 +645,9 @@ select:focus-visible {
 
     .split-grid,
     .diff-controls,
-    .history-controls {
+    .history-controls,
+    .chat-config-grid,
+    .chat-input-row {
         grid-template-columns: 1fr;
     }
 

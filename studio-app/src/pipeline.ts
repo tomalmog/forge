@@ -5,6 +5,7 @@ const DEFAULT_NODE_DURATION_SECONDS: Record<PipelineNodeType, number> = {
   filter: 30,
   train: 240,
   export: 60,
+  chat: 20,
   custom: 30,
 };
 
@@ -67,6 +68,21 @@ export function buildDefaultNode(type: PipelineNodeType): PipelineNode {
         dataset: "demo",
         output_dir: "./outputs/export/demo",
         shard_size: "500",
+      },
+    };
+  }
+  if (type === "chat") {
+    return {
+      id,
+      type,
+      title: "Chat",
+      config: {
+        dataset: "demo",
+        model_path: "./outputs/train/demo/model.pt",
+        prompt: "hello",
+        max_new_tokens: "80",
+        temperature: "0.8",
+        top_k: "40",
       },
     };
   }
@@ -149,6 +165,35 @@ export function toForgeArgs(node: PipelineNode): string[] {
       node.config.shard_size,
       "--include-metadata",
     ];
+  }
+  if (node.type === "chat") {
+    const args = [
+      "chat",
+      "--dataset",
+      node.config.dataset,
+      "--model-path",
+      node.config.model_path,
+      "--prompt",
+      node.config.prompt,
+    ];
+    appendOptionalArg(args, "--max-new-tokens", node.config.max_new_tokens);
+    appendOptionalArg(args, "--temperature", node.config.temperature);
+    appendOptionalArg(args, "--top-k", node.config.top_k);
+    appendOptionalArg(args, "--version-id", node.config.version_id);
+    appendOptionalArg(
+      args,
+      "--architecture-file",
+      node.config.architecture_file,
+    );
+    appendOptionalArg(args, "--max-token-length", node.config.max_token_length);
+    appendOptionalArg(args, "--vocabulary-size", node.config.vocabulary_size);
+    appendOptionalArg(args, "--hidden-dim", node.config.hidden_dim);
+    appendOptionalArg(args, "--num-layers", node.config.num_layers);
+    appendOptionalArg(args, "--attention-heads", node.config.attention_heads);
+    appendOptionalArg(args, "--mlp-hidden-dim", node.config.mlp_hidden_dim);
+    appendOptionalArg(args, "--mlp-layers", node.config.mlp_layers);
+    appendOptionalArg(args, "--dropout", node.config.dropout);
+    return args;
   }
   return splitArgs(node.config.args);
 }

@@ -5,6 +5,7 @@ const palette: Array<{ type: PipelineNodeType; title: string }> = [
   { type: "filter", title: "Filter" },
   { type: "train", title: "Train" },
   { type: "export", title: "Export" },
+  { type: "chat", title: "Chat" },
   { type: "custom", title: "Custom Step" },
 ];
 

@@ -6,6 +6,7 @@ export interface PanelVisibility {
   version_diff: boolean;
   sample_inspector: boolean;
   pipeline_builder: boolean;
+  chat_room: boolean;
   training_curves: boolean;
   run_console: boolean;
 }
@@ -23,6 +24,7 @@ export const DEFAULT_PANEL_VISIBILITY: PanelVisibility = {
   version_diff: true,
   sample_inspector: true,
   pipeline_builder: true,
+  chat_room: true,
   training_curves: true,
   run_console: true,
 };
@@ -35,11 +37,14 @@ export const VIEW_CONTROL_ITEMS: ViewControlItem[] = [
   { key: "version_diff", label: "Version Diff" },
   { key: "sample_inspector", label: "Sample Inspector" },
   { key: "pipeline_builder", label: "Pipeline Builder" },
+  { key: "chat_room", label: "Chat Room" },
   { key: "training_curves", label: "Training Curves" },
   { key: "run_console", label: "Run Console" },
 ];
 
-export function anyDashboardSectionVisible(visibility: PanelVisibility): boolean {
+export function anyDashboardSectionVisible(
+  visibility: PanelVisibility,
+): boolean {
   return (
     visibility.dashboard_metrics ||
     visibility.dashboard_language_mix ||

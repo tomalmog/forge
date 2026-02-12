@@ -4,7 +4,7 @@ use crate::commands::forge_task_store::CommandTaskStore;
 use crate::models::{CommandTaskStart, CommandTaskStatus};
 use tauri::State;
 
-const ALLOWED_COMMANDS: [&str; 5] = ["ingest", "filter", "train", "export-training", "versions"];
+const ALLOWED_COMMANDS: [&str; 6] = ["ingest", "filter", "train", "export-training", "versions", "chat"];
 
 #[tauri::command]
 pub fn start_forge_command(

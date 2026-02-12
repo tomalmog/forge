@@ -1,4 +1,5 @@
 import { DashboardView } from "./DashboardView";
+import { ChatRoomView } from "./ChatRoomView";
 import { PipelineCanvas } from "./PipelineCanvas";
 import { SampleInspector } from "./SampleInspector";
 import { StatusConsole } from "./StatusConsole";
@@ -17,6 +18,8 @@ import { anyDashboardSectionVisible, PanelVisibility } from "../view_controls";
 
 interface WorkspacePanelsProps {
   panelVisibility: PanelVisibility;
+  dataRoot: string;
+  selectedDataset: string | null;
   dashboard: DatasetDashboard | null;
   versions: VersionSummary[];
   baseVersion: string | null;
@@ -96,6 +99,12 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
           onRemoveNode={props.onRemoveNode}
           onUpdateNode={props.onUpdateNode}
           onRunPipeline={props.onRunPipeline}
+        />
+      )}
+      {props.panelVisibility.chat_room && (
+        <ChatRoomView
+          dataRoot={props.dataRoot}
+          selectedDataset={props.selectedDataset}
         />
       )}
       {props.panelVisibility.training_curves && (

@@ -253,6 +253,7 @@ fn default_estimate_seconds(command_name: &str) -> u64 {
         "train" => 240,
         "export-training" => 60,
         "versions" => 8,
+        "chat" => 20,
         _ => 30,
     }
 }
@@ -276,6 +277,7 @@ mod tests {
     fn default_estimate_returns_expected_values() {
         assert_eq!(default_estimate_seconds("train"), 240);
         assert_eq!(default_estimate_seconds("versions"), 8);
+        assert_eq!(default_estimate_seconds("chat"), 20);
         assert_eq!(default_estimate_seconds("unknown"), 30);
     }
 }

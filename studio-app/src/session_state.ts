@@ -113,6 +113,7 @@ function parsePanelVisibility(value: unknown): PanelVisibility {
       raw.pipeline_builder,
       defaultVisibility.pipeline_builder,
     ),
+    chat_room: asBoolean(raw.chat_room, defaultVisibility.chat_room),
     training_curves: asBoolean(
       raw.training_curves,
       defaultVisibility.training_curves,

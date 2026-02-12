@@ -80,6 +80,7 @@ export type PipelineNodeType =
   | "filter"
   | "train"
   | "export"
+  | "chat"
   | "custom";
 
 export interface PipelineNode {
