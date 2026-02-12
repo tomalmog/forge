@@ -165,8 +165,7 @@ input::placeholder {
     border-color: #4d5667;
 }
 
-.button:disabled,
-.palette-item:disabled {
+.button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
 }
@@ -398,23 +397,6 @@ select:focus-visible {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-}
-
-.palette-item {
-    border: 1px solid #465061;
-    border-radius: 4px;
-    padding: 7px 12px;
-    background: var(--bg-strong);
-    color: var(--ink);
-    cursor: grab;
-    transition:
-        background-color 140ms ease,
-        border-color 140ms ease;
-}
-
-.palette-item:hover {
-    background: #363e4e;
-    border-color: #4d5667;
 }
 
 .pipeline-canvas {

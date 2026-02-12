@@ -19,11 +19,13 @@ export function PipelinePalette(props: PipelinePaletteProps) {
     <div className="palette">
       {PALETTE_ENTRIES.map((entry) => (
         <button
-          className="palette-item"
+          className="pipeline-control-button"
           key={entry.type}
           draggable
           disabled={props.isRunning}
-          onDragStart={(event) => event.dataTransfer.setData("forge-node", entry.type)}
+          onDragStart={(event) =>
+            event.dataTransfer.setData("forge-node", entry.type)
+          }
           onClick={() => props.onAddNode(entry.type)}
         >
           {entry.title}

@@ -49,6 +49,7 @@ interface WorkspacePanelsProps {
   onAddEdge: (sourceNodeId: string, targetNodeId: string) => void;
   onRemoveEdge: (edgeId: string) => void;
   onRemoveNode: (nodeId: string) => void;
+  onClearCanvas: () => void;
   onUpdateNode: (nodeId: string, key: string, value: string) => void;
   onRunPipeline: () => void;
   historyPath: string;
@@ -95,6 +96,7 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
       )}
       {props.panelVisibility.pipeline_builder && (
         <PipelineCanvas
+          dataRoot={props.dataRoot}
           nodes={props.nodes}
           edges={props.edges}
           startNodeId={props.startNodeId}
@@ -114,6 +116,7 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
           onAddEdge={props.onAddEdge}
           onRemoveEdge={props.onRemoveEdge}
           onRemoveNode={props.onRemoveNode}
+          onClearCanvas={props.onClearCanvas}
           onUpdateNode={props.onUpdateNode}
           onRunPipeline={props.onRunPipeline}
         />

@@ -3,6 +3,9 @@ import {
   CommandTaskStart,
   CommandTaskStatus,
   DatasetDashboard,
+  PipelineCanvasExportResult,
+  PipelineEdge,
+  PipelineNode,
   RecordSample,
   TrainingHistory,
   VersionDiff,
@@ -79,4 +82,18 @@ export async function loadTrainingHistory(
   historyPath: string,
 ): Promise<TrainingHistory> {
   return invoke<TrainingHistory>("load_training_history", { historyPath });
+}
+
+export async function exportPipelineCanvas(
+  dataRoot: string,
+  nodes: PipelineNode[],
+  edges: PipelineEdge[],
+  startNodeId: string | null,
+): Promise<PipelineCanvasExportResult> {
+  return invoke<PipelineCanvasExportResult>("export_pipeline_canvas", {
+    dataRoot,
+    nodes,
+    edges,
+    startNodeId,
+  });
 }

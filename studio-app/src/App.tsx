@@ -240,6 +240,7 @@ function App() {
         onAddEdge={pipeline.add_edge}
         onRemoveEdge={pipeline.remove_edge}
         onRemoveNode={pipeline.remove_node}
+        onClearCanvas={pipeline.clear_canvas}
         onUpdateNode={pipeline.update_node}
         onRunPipeline={() => pipeline.run_pipeline().catch(logUiError)}
         historyPath={pipeline.history_path}

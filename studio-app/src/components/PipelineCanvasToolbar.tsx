@@ -10,19 +10,19 @@ export function PipelineCanvasToolbar(props: PipelineCanvasToolbarProps) {
   return (
     <div className="pipeline-toolbar">
       <button
-        className={`pipeline-tool-button ${props.activeTool === "move" ? "active" : ""}`}
+        className={`pipeline-control-button ${props.activeTool === "move" ? "is-active" : ""}`}
         onClick={() => props.onSetTool("move")}
       >
         Move
       </button>
       <button
-        className={`pipeline-tool-button ${props.activeTool === "wire" ? "active" : ""}`}
+        className={`pipeline-control-button ${props.activeTool === "wire" ? "is-active" : ""}`}
         onClick={() => props.onSetTool("wire")}
       >
         Wire
       </button>
       <button
-        className={`pipeline-tool-button ${props.activeTool === "erase" ? "active" : ""}`}
+        className={`pipeline-control-button ${props.activeTool === "erase" ? "is-active" : ""}`}
         onClick={() => props.onSetTool("erase")}
       >
         Erase

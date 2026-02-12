@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { exportPipelineCanvas } from "../api/studioApi";
 import { PipelineEdge, PipelineNode, PipelineNodeType } from "../types";
 import { PipelineCanvasToolbar } from "./PipelineCanvasToolbar";
 import { PipelineEditorList } from "./PipelineEditorList";
@@ -10,6 +12,7 @@ import { usePipelineCanvasRuntime } from "./use_pipeline_canvas_runtime";
 import "./PipelineCanvas.css";
 
 interface PipelineCanvasProps {
+  dataRoot: string;
   nodes: PipelineNode[];
   edges: PipelineEdge[];
   startNodeId: string | null;
@@ -29,11 +32,13 @@ interface PipelineCanvasProps {
   onAddEdge: (sourceNodeId: string, targetNodeId: string) => void;
   onRemoveEdge: (edgeId: string) => void;
   onRemoveNode: (nodeId: string) => void;
+  onClearCanvas: () => void;
   onUpdateNode: (nodeId: string, key: string, value: string) => void;
   onRunPipeline: () => void;
 }
 
 export function PipelineCanvas(props: PipelineCanvasProps) {
+  const [canvasActionMessage, setCanvasActionMessage] = useState<string>("");
   const runtime = usePipelineCanvasRuntime({
     nodes: props.nodes,
     edges: props.edges,
@@ -53,25 +58,51 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
         editors and keep multiple editors open.
       </p>
 
-      <PipelinePalette
-        isRunning={props.isRunning}
-        onAddNode={(type) => props.onAddNode(type)}
-      />
-
       <div className="pipeline-graph-shell">
-        <PipelineCanvasToolbar
-          activeTool={runtime.activeTool}
-          wireSourceNodeId={runtime.wireSourceNodeId}
-          onSetTool={(mode) => {
-            runtime.setActiveTool(mode);
-            if (mode !== "wire") {
-              runtime.setWireSourceNodeId(null);
-            }
-            if (mode !== "erase") {
-              runtime.setIsErasing(false);
-            }
-          }}
-        />
+        <div className="pipeline-control-row">
+          <div className="pipeline-controls-left">
+            <PipelinePalette
+              isRunning={props.isRunning}
+              onAddNode={(type) => props.onAddNode(type)}
+            />
+            <span className="pipeline-control-divider">|</span>
+            <PipelineCanvasToolbar
+              activeTool={runtime.activeTool}
+              wireSourceNodeId={runtime.wireSourceNodeId}
+              onSetTool={(mode) => {
+                runtime.setActiveTool(mode);
+                if (mode !== "wire") {
+                  runtime.setWireSourceNodeId(null);
+                }
+                if (mode !== "erase") {
+                  runtime.setIsErasing(false);
+                }
+              }}
+            />
+          </div>
+          <div className="pipeline-control-actions">
+            <button
+              className="pipeline-control-button"
+              onClick={() => {
+                props.onClearCanvas();
+                setCanvasActionMessage("Canvas cleared.");
+              }}
+              disabled={props.isRunning || props.nodes.length === 0}
+            >
+              Clear Canvas
+            </button>
+            <button
+              className="pipeline-control-button"
+              onClick={() => handleExportCanvas()}
+              disabled={props.nodes.length === 0}
+            >
+              Export Canvas
+            </button>
+          </div>
+        </div>
+        {canvasActionMessage ? (
+          <p className="pipeline-control-message">{canvasActionMessage}</p>
+        ) : null}
 
         <PipelineGraphCanvas
           graphRef={runtime.graphRef}
@@ -161,4 +192,19 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
       </button>
     </section>
   );
+
+  async function handleExportCanvas(): Promise<void> {
+    try {
+      const result = await exportPipelineCanvas(
+        props.dataRoot,
+        props.nodes,
+        props.edges,
+        props.startNodeId,
+      );
+      setCanvasActionMessage(`Canvas exported to ${result.output_path}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setCanvasActionMessage(`Canvas export failed: ${message}`);
+    }
+  }
 }

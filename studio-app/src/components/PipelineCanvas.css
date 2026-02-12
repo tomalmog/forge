@@ -6,17 +6,64 @@
     overflow: hidden;
 }
 
-.pipeline-toolbar {
+.pipeline-control-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+    gap: 14px;
     padding: 8px;
     border-bottom: 1px solid var(--line);
     background: #28303c;
 }
 
-.pipeline-tool-button {
+.pipeline-controls-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pipeline-control-divider {
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1;
+    user-select: none;
+}
+
+.pipeline-control-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pipeline-control-row .palette,
+.pipeline-control-row .pipeline-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.pipeline-control-row .pipeline-control-button {
+    min-height: 44px;
+    padding: 0 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pipeline-toolbar-note {
+    color: var(--muted);
+    padding-left: 6px;
+    font-size: 0.7rem;
+}
+
+.pipeline-toolbar {
+    min-height: 38px;
+}
+
+.pipeline-control-button {
     border: 1px solid var(--line);
     border-radius: 4px;
     background: var(--bg-strong);
@@ -26,23 +73,18 @@
     cursor: pointer;
 }
 
-.pipeline-tool-button:hover {
+.pipeline-control-button:hover {
     background: #363e4e;
 }
 
-.pipeline-tool-button.active {
+.pipeline-control-button.is-active {
     border-color: var(--accent);
     background: #33415c;
 }
 
-.pipeline-tool-button:disabled {
+.pipeline-control-button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-}
-
-.pipeline-toolbar-note {
-    color: var(--muted);
-    padding-left: 4px;
 }
 
 .pipeline-graph {
@@ -175,6 +217,15 @@
     padding: 12px;
 }
 
+.pipeline-control-message {
+    margin: 0;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 0.72rem;
+    word-break: break-all;
+}
+
 .pipeline-editor-list {
     margin-top: 12px;
     display: grid;
@@ -204,6 +255,17 @@
 }
 
 @media (max-width: 1080px) {
+    .pipeline-control-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .pipeline-controls-left,
+    .pipeline-control-actions {
+        width: 100%;
+        margin-left: 0;
+    }
+
     .pipeline-graph {
         min-height: 340px;
     }

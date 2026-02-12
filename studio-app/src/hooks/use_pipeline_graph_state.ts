@@ -51,6 +51,7 @@ export interface PipelineGraphState {
   update_node: (nodeId: string, key: string, value: string) => void;
   add_edge: (sourceNodeId: string, targetNodeId: string) => void;
   remove_edge: (edgeId: string) => void;
+  clear_canvas: () => void;
   run_pipeline: () => Promise<void>;
   load_history: () => Promise<void>;
 }
@@ -173,6 +174,13 @@ export function usePipelineGraphState(
     setEdges((current) => current.filter((edge) => edge.id !== edgeId));
   }
 
+  function clearCanvas() {
+    setNodes([]);
+    setEdges([]);
+    setStartNodeId(null);
+    setSelectedNodeId(null);
+  }
+
   async function runPipeline() {
     if (nodes.length === 0) {
       setConsoleOutput("Add at least one pipeline node before running.");
@@ -243,6 +251,7 @@ export function usePipelineGraphState(
     update_node: updateNode,
     add_edge: addEdge,
     remove_edge: removeEdge,
+    clear_canvas: clearCanvas,
     run_pipeline: runPipeline,
     load_history: loadHistory,
   };

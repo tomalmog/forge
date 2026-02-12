@@ -97,3 +97,7 @@ export interface PipelineEdge {
   source_node_id: string;
   target_node_id: string;
 }
+
+export interface PipelineCanvasExportResult {
+  output_path: string;
+}
