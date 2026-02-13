@@ -15,6 +15,7 @@ export interface StudioSessionState {
   selected_node_id: string | null;
   console_output: string;
   history_path: string;
+  last_canvas_export_dir: string;
   is_view_controls_open: boolean;
   panel_visibility: PanelVisibility;
 }
@@ -31,6 +32,7 @@ export const DEFAULT_SESSION_STATE: StudioSessionState = {
   selected_node_id: null,
   console_output: "",
   history_path: "",
+  last_canvas_export_dir: "",
   is_view_controls_open: true,
   panel_visibility: DEFAULT_PANEL_VISIBILITY,
 };
@@ -57,6 +59,7 @@ export function loadSessionState(): StudioSessionState {
       selected_node_id: asNullableString(parsed.selected_node_id),
       console_output: asString(parsed.console_output, ""),
       history_path: asString(parsed.history_path, ""),
+      last_canvas_export_dir: asString(parsed.last_canvas_export_dir, ""),
       is_view_controls_open: asBoolean(parsed.is_view_controls_open, true),
       panel_visibility: parsePanelVisibility(parsed.panel_visibility),
     };

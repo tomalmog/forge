@@ -14,6 +14,7 @@ import "./PipelineCanvas.css";
 
 interface PipelineCanvasProps {
   dataRoot: string;
+  lastCanvasExportDir: string;
   nodes: PipelineNode[];
   edges: PipelineEdge[];
   startNodeId: string | null;
@@ -34,6 +35,7 @@ interface PipelineCanvasProps {
   onRemoveEdge: (edgeId: string) => void;
   onRemoveNode: (nodeId: string) => void;
   onClearCanvas: () => void;
+  onLastCanvasExportDirChange: (value: string) => void;
   onUpdateNode: (nodeId: string, key: string, value: string) => void;
   onRunPipeline: () => void;
 }
@@ -197,7 +199,10 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
   async function handleExportCanvas(): Promise<void> {
     try {
       const selectedPath = await save({
-        defaultPath: buildDefaultCanvasExportPath(props.dataRoot),
+        defaultPath: buildDefaultCanvasExportPath(
+          props.dataRoot,
+          props.lastCanvasExportDir,
+        ),
         filters: [
           {
             name: "JSON",
@@ -216,6 +221,10 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
         props.startNodeId,
         selectedPath,
       );
+      const exportDir = extractDirectoryPath(result.output_path);
+      if (exportDir) {
+        props.onLastCanvasExportDirChange(exportDir);
+      }
       setCanvasActionMessage(`Canvas exported to ${result.output_path}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -224,8 +233,43 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
   }
 }
 
-function buildDefaultCanvasExportPath(dataRoot: string): string {
+function buildDefaultCanvasExportPath(
+  dataRoot: string,
+  lastCanvasExportDir: string,
+): string {
   const now = new Date();
   const timestamp = now.toISOString().replace(/[:.]/g, "-");
-  return `${dataRoot}/outputs/canvas/forge-canvas-${timestamp}.json`;
+  const exportDir =
+    lastCanvasExportDir.trim().length > 0
+      ? lastCanvasExportDir.trim()
+      : `${dataRoot}/outputs/canvas`;
+  return joinDirectoryAndFile(exportDir, `forge-canvas-${timestamp}.json`);
+}
+
+function extractDirectoryPath(pathValue: string): string {
+  const normalizedPath = pathValue.trim();
+  if (!normalizedPath) {
+    return "";
+  }
+  const slashIndex = Math.max(
+    normalizedPath.lastIndexOf("/"),
+    normalizedPath.lastIndexOf("\\"),
+  );
+  if (slashIndex < 0) {
+    return "";
+  }
+  if (slashIndex === 0) {
+    return normalizedPath.startsWith("\\") ? "\\" : "/";
+  }
+  return normalizedPath.slice(0, slashIndex);
+}
+
+function joinDirectoryAndFile(directoryPath: string, fileName: string): string {
+  const separator = directoryPath.includes("\\") ? "\\" : "/";
+  const hasTrailingSeparator =
+    directoryPath.endsWith("/") || directoryPath.endsWith("\\");
+  if (hasTrailingSeparator) {
+    return `${directoryPath}${fileName}`;
+  }
+  return `${directoryPath}${separator}${fileName}`;
 }

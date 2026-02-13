@@ -47,6 +47,9 @@ function App() {
   const [panelVisibility, setPanelVisibility] = useState<PanelVisibility>(
     INITIAL_SESSION.panel_visibility,
   );
+  const [lastCanvasExportDir, setLastCanvasExportDir] = useState(
+    INITIAL_SESSION.last_canvas_export_dir,
+  );
 
   const pipeline = usePipelineGraphState({
     data_root: dataRoot,
@@ -89,6 +92,7 @@ function App() {
       selected_node_id: pipeline.selected_node_id,
       console_output: pipeline.console_output,
       history_path: pipeline.history_path,
+      last_canvas_export_dir: lastCanvasExportDir,
       is_view_controls_open: isViewControlsOpen,
       panel_visibility: panelVisibility,
     });
@@ -104,6 +108,7 @@ function App() {
     pipeline.selected_node_id,
     pipeline.console_output,
     pipeline.history_path,
+    lastCanvasExportDir,
     isViewControlsOpen,
     panelVisibility,
   ]);
@@ -243,6 +248,8 @@ function App() {
         onClearCanvas={pipeline.clear_canvas}
         onUpdateNode={pipeline.update_node}
         onRunPipeline={() => pipeline.run_pipeline().catch(logUiError)}
+        lastCanvasExportDir={lastCanvasExportDir}
+        onLastCanvasExportDirChange={setLastCanvasExportDir}
         historyPath={pipeline.history_path}
         history={pipeline.history}
         onHistoryPathChange={pipeline.set_history_path}

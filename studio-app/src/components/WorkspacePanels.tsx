@@ -52,6 +52,8 @@ interface WorkspacePanelsProps {
   onClearCanvas: () => void;
   onUpdateNode: (nodeId: string, key: string, value: string) => void;
   onRunPipeline: () => void;
+  lastCanvasExportDir: string;
+  onLastCanvasExportDirChange: (value: string) => void;
   historyPath: string;
   history: TrainingHistory | null;
   onHistoryPathChange: (value: string) => void;
@@ -119,6 +121,8 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
           onClearCanvas={props.onClearCanvas}
           onUpdateNode={props.onUpdateNode}
           onRunPipeline={props.onRunPipeline}
+          lastCanvasExportDir={props.lastCanvasExportDir}
+          onLastCanvasExportDirChange={props.onLastCanvasExportDirChange}
         />
       )}
       {props.panelVisibility.chat_room && (
