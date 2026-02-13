@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "pytest==8.3.5",
+  "pyyaml==6.0.2",
 ]
 
 [project.optional-dependencies]

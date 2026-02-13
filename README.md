@@ -8,6 +8,9 @@ Forge phase one includes:
 - Python SDK for ingest, version listing, metadata filtering, and optional S3 export.
 - PyTorch DataLoader integration with tokenization and shuffling helpers.
 - PyTorch training command with default loop, optional custom loop, and loss curves.
+- Shared YAML run-spec execution for CLI and Python SDK workflows.
+- Training lifecycle registry + lineage graph + artifact contract metadata for each run.
+- Hardware capability profiling command with recommended precision and batch defaults.
 
 ## Quickstart
 
@@ -17,6 +20,7 @@ forge ingest tests/fixtures/raw_valid --dataset demo
 forge versions --dataset demo
 forge filter --dataset demo --language en --min-quality 0.2
 forge train --dataset demo --output-dir ./outputs/train/demo
+forge hardware-profile
 ```
 
 ## One-Command Smoke Test
@@ -86,6 +90,15 @@ forge train \
   --custom-loop-file ./loops/my_training_loop.py
 ```
 
+Use optional lifecycle hooks (run/epoch/batch/checkpoint/custom loss):
+
+```bash
+forge train \
+  --dataset demo \
+  --output-dir ./outputs/train/demo \
+  --hooks-file ./hooks/my_training_hooks.py
+```
+
 Fine-tune from existing model weights:
 
 ```bash
@@ -105,6 +118,12 @@ forge chat \
   --prompt "hello"
 ```
 
+Run a declarative pipeline spec:
+
+```bash
+forge run-spec ./pipeline.yaml
+```
+
 Artifacts written to output dir:
 
 - `model.pt` (trained model weights)
@@ -112,3 +131,10 @@ Artifacts written to output dir:
 - `training_curves.png` (loss graph; requires matplotlib)
 - `training_config.json` (training architecture/config used for reproducible inference)
 - `tokenizer_vocab.json` (fitted tokenizer vocabulary reused by `forge chat`)
+- `training_artifacts_manifest.json` (artifact contract with stable paths and run metadata)
+- `reproducibility_bundle.json` (config hash + environment snapshot for replay)
+
+Lifecycle and lineage files are stored under your data-root:
+
+- `.forge/runs/index.json` and `.forge/runs/<run_id>/lifecycle.json`
+- `.forge/lineage/model_lineage.json`

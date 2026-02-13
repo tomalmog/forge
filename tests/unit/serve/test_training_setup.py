@@ -58,3 +58,75 @@ def test_validate_training_options_rejects_unknown_position_embedding(tmp_path) 
         validate_training_options(options)
 
     assert True
+
+
+def test_validate_training_options_rejects_non_positive_checkpoint_interval(tmp_path) -> None:
+    """Validation should fail when checkpoint interval is below one epoch."""
+    options = TrainingOptions(
+        dataset_name="demo",
+        output_dir=str(tmp_path),
+        checkpoint_every_epochs=0,
+    )
+
+    with pytest.raises(ForgeServeError):
+        validate_training_options(options)
+
+    assert True
+
+
+def test_validate_training_options_rejects_conflicting_weight_sources(tmp_path) -> None:
+    """Validation should fail when initial and resume weights are both configured."""
+    options = TrainingOptions(
+        dataset_name="demo",
+        output_dir=str(tmp_path),
+        initial_weights_path=str(tmp_path / "initial.pt"),
+        resume_checkpoint_path=str(tmp_path / "checkpoint.pt"),
+    )
+
+    with pytest.raises(ForgeServeError):
+        validate_training_options(options)
+
+    assert True
+
+
+def test_validate_training_options_rejects_unknown_optimizer_type(tmp_path) -> None:
+    """Validation should fail for unsupported optimizer type."""
+    options = TrainingOptions(
+        dataset_name="demo",
+        output_dir=str(tmp_path),
+        optimizer_type="invalid",  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(ForgeServeError):
+        validate_training_options(options)
+
+    assert True
+
+
+def test_validate_training_options_rejects_invalid_step_scheduler_gamma(tmp_path) -> None:
+    """Validation should fail when step scheduler gamma is out of range."""
+    options = TrainingOptions(
+        dataset_name="demo",
+        output_dir=str(tmp_path),
+        scheduler_type="step",
+        scheduler_gamma=1.5,
+    )
+
+    with pytest.raises(ForgeServeError):
+        validate_training_options(options)
+
+    assert True
+
+
+def test_validate_training_options_rejects_unknown_precision_mode(tmp_path) -> None:
+    """Validation should fail for unsupported mixed precision mode."""
+    options = TrainingOptions(
+        dataset_name="demo",
+        output_dir=str(tmp_path),
+        precision_mode="mixed",  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(ForgeServeError):
+        validate_training_options(options)
+
+    assert True

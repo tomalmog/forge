@@ -12,6 +12,7 @@ from pathlib import Path
 from core.chat_types import ChatOptions, ChatResult
 from core.config import ForgeConfig
 from core.errors import ForgeServeError
+from core.run_spec_execution import execute_run_spec_file
 from core.types import (
     DataRecord,
     IngestOptions,
@@ -24,6 +25,9 @@ from core.types import (
 )
 from ingest.pipeline import ingest_dataset
 from serve.chat_runner import run_chat
+from serve.hardware_profile import detect_hardware_profile
+from serve.training_run_registry import TrainingRunRegistry
+from serve.training_run_types import TrainingRunRecord
 from serve.training_runner import run_training
 from store.snapshot_store import SnapshotStore
 
@@ -102,6 +106,52 @@ class ForgeClient:
         resolved_root = Path(data_root).expanduser().resolve()
         updated_config = replace(self._config, data_root=resolved_root)
         return ForgeClient(updated_config)
+
+    def run_spec(self, spec_file: str) -> tuple[str, ...]:
+        """Execute a YAML run-spec through the shared execution engine.
+
+        Args:
+            spec_file: Path to YAML run-spec file.
+
+        Returns:
+            Ordered command output lines.
+        """
+        return execute_run_spec_file(self, spec_file)
+
+    def hardware_profile(self) -> dict[str, object]:
+        """Detect local hardware profile and recommended defaults.
+
+        Returns:
+            Hardware profile payload.
+        """
+        return detect_hardware_profile().to_dict()
+
+    def list_training_runs(self) -> tuple[str, ...]:
+        """List known training run IDs from lifecycle registry.
+
+        Returns:
+            Ordered tuple of run IDs.
+        """
+        return TrainingRunRegistry(self._config.data_root).list_runs()
+
+    def get_training_run(self, run_id: str) -> TrainingRunRecord:
+        """Load one training run lifecycle record by ID.
+
+        Args:
+            run_id: Training run identifier.
+
+        Returns:
+            Persisted lifecycle record.
+        """
+        return TrainingRunRegistry(self._config.data_root).load_run(run_id)
+
+    def get_lineage_graph(self) -> dict[str, object]:
+        """Load model/dataset lineage graph for this data root.
+
+        Returns:
+            Lineage graph payload.
+        """
+        return TrainingRunRegistry(self._config.data_root).load_lineage_graph()
 
 
 class Dataset:
@@ -215,8 +265,14 @@ class Dataset:
                 f"Training options dataset '{options.dataset_name}' does not match handle "
                 f"'{self._dataset_name}'."
             )
-        _, records = self.load_records(options.version_id)
-        return run_training(records, options, random_seed=self._store.random_seed)
+        manifest, records = self.load_records(options.version_id)
+        return run_training(
+            records=records,
+            options=options,
+            random_seed=self._store.random_seed,
+            data_root=self._store.data_root,
+            dataset_version_id=manifest.version_id,
+        )
 
     def chat(self, options: ChatOptions) -> ChatResult:
         """Run one chat completion on this dataset.

@@ -1,0 +1,6 @@
+version: 1
+defaults:
+  dataset: demo
+  bad_field: nope
+steps:
+  - command: versions

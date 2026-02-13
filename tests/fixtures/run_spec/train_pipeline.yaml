@@ -1,0 +1,13 @@
+version: 1
+defaults:
+  dataset: demo
+steps:
+  - command: train
+    output_dir: /tmp/forge-run
+    epochs: 2
+    precision_mode: bf16
+    optimizer_type: adamw
+    weight_decay: 0.01
+    scheduler_type: cosine
+    scheduler_t_max_epochs: 8
+    progress_log_interval_steps: 4

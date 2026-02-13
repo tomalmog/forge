@@ -64,6 +64,11 @@ class SnapshotStore:
         """Return configured random seed for deterministic operations."""
         return self._config.random_seed
 
+    @property
+    def data_root(self) -> Path:
+        """Return resolved data root used by this store."""
+        return self._config.data_root
+
     def create_snapshot(self, request: SnapshotWriteRequest) -> SnapshotManifest:
         """Create a new immutable dataset snapshot.
 

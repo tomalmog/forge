@@ -1,19 +1,19 @@
-"""PyTorch training runner for Forge datasets.
+"""PyTorch training workflow orchestration.
 
-This module executes the default training cycle and supports
-user-defined custom loops with shared runtime context.
+This module prepares runtime state, executes training loops, and persists
+artifacts, lifecycle metadata, and lineage links for each training run.
 """
 
 from __future__ import annotations
 
 import random
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
 from core.errors import ForgeDependencyError, ForgeServeError
 from core.types import BatchLossMetric, DataRecord, EpochMetric, TrainingOptions, TrainingRunResult
 from serve.architecture_loader import load_training_model
-from serve.custom_loop_loader import load_custom_training_loop
 from serve.model_weights import load_initial_weights
 from serve.tokenization import (
     SequenceBatch,
@@ -21,14 +21,26 @@ from serve.tokenization import (
     build_training_sequences,
     split_sequences,
 )
+from serve.training_artifact_contract import save_training_artifact_contract
 from serve.training_artifacts import (
     ensure_training_output_dir,
     save_model_weights,
     save_training_history,
     save_training_plot,
 )
+from serve.training_config_hash import compute_training_config_hash
 from serve.training_context import TrainingRuntimeContext
+from serve.training_execution import TrainingLoopResult, run_training_loop
+from serve.training_hooks import (
+    build_loss_function_from_hooks,
+    invoke_hook,
+    load_training_hooks,
+)
 from serve.training_metadata import save_tokenizer_vocabulary, save_training_config
+from serve.training_optimization import build_training_optimization
+from serve.training_precision import build_training_precision_runtime
+from serve.training_reproducibility_bundle import save_reproducibility_bundle
+from serve.training_run_registry import TrainingRunRegistry
 from serve.training_setup import fit_training_tokenizer, validate_training_options
 
 
@@ -36,31 +48,66 @@ def run_training(
     records: list[DataRecord],
     options: TrainingOptions,
     random_seed: int,
+    data_root: Path,
+    dataset_version_id: str,
 ) -> TrainingRunResult:
-    """Run training workflow and persist artifacts.
-
-    Args:
-        records: Dataset records used for training.
-        options: Training options.
-        random_seed: Deterministic random seed.
-
-    Returns:
-        Training artifact summary.
-
-    Raises:
-        ForgeServeError: If training setup or loop fails.
-    """
-    context = _build_runtime_context(records, options, random_seed)
-    epoch_metrics, batch_metrics = _run_training_loop(context)
-    return _persist_training_outputs(context, epoch_metrics, batch_metrics)
+    """Run a full training workflow and persist run lifecycle metadata."""
+    config_hash = compute_training_config_hash(options)
+    run_registry = TrainingRunRegistry(data_root)
+    run_record = run_registry.start_run(
+        dataset_name=options.dataset_name,
+        dataset_version_id=dataset_version_id,
+        output_dir=str(Path(options.output_dir).expanduser().resolve()),
+        parent_model_path=options.initial_weights_path,
+        config_hash=config_hash,
+    )
+    context: TrainingRuntimeContext | None = None
+    try:
+        context = _build_runtime_context(
+            records=records,
+            options=options,
+            random_seed=random_seed,
+            run_id=run_record.run_id,
+            dataset_version_id=dataset_version_id,
+            config_hash=config_hash,
+            run_registry=run_registry,
+        )
+        run_registry.transition(run_record.run_id, "running")
+        invoke_hook("on_run_start", context.hooks.on_run_start, context)
+        loop_result = run_training_loop(context)
+        result = _persist_training_outputs(
+            context=context,
+            loop_result=loop_result,
+            run_id=run_record.run_id,
+            dataset_version_id=dataset_version_id,
+            config_hash=config_hash,
+            random_seed=random_seed,
+        )
+        invoke_hook("on_run_end", context.hooks.on_run_end, context, result)
+        run_registry.transition(
+            run_id=run_record.run_id,
+            next_state="completed",
+            artifact_contract_path=result.artifact_contract_path,
+            model_path=result.model_path,
+        )
+        return result
+    except Exception as error:
+        if context is not None:
+            _invoke_error_hook(context, error)
+        run_registry.transition(run_record.run_id, "failed", message=str(error))
+        raise
 
 
 def _build_runtime_context(
     records: list[DataRecord],
     options: TrainingOptions,
     random_seed: int,
+    run_id: str,
+    dataset_version_id: str,
+    config_hash: str,
+    run_registry: TrainingRunRegistry,
 ) -> TrainingRuntimeContext:
-    """Build training runtime context from records and options."""
+    """Build an initialized runtime context from records and options."""
     torch_module = _import_torch()
     validate_training_options(options)
     output_dir = ensure_training_output_dir(options.output_dir)
@@ -82,50 +129,111 @@ def _build_runtime_context(
         initial_weights_path=options.initial_weights_path,
         device=device,
     )
-    optimizer = torch_module.optim.Adam(model.parameters(), lr=options.learning_rate)
-    loss_function = torch_module.nn.CrossEntropyLoss(ignore_index=0)
-    return TrainingRuntimeContext(
+    precision_runtime = build_training_precision_runtime(
+        torch_module=torch_module,
+        requested_mode=options.precision_mode,
+        device=device,
+    )
+    optimization = build_training_optimization(torch_module, model, options)
+    hooks = load_training_hooks(options.hooks_path)
+    context = TrainingRuntimeContext(
         torch_module=torch_module,
         model=model,
-        optimizer=optimizer,
-        loss_function=loss_function,
+        optimizer=optimization.optimizer,
+        scheduler=optimization.scheduler,
+        precision_runtime=precision_runtime,
+        loss_function=torch_module.nn.CrossEntropyLoss(ignore_index=0),
         train_batches=train_batches,
         validation_batches=validation_batches,
         tokenizer=tokenizer,
         options=options,
         output_dir=output_dir,
         device=device,
+        run_id=run_id,
+        dataset_version_id=dataset_version_id,
+        config_hash=config_hash,
+        hooks=hooks,
+        run_registry=run_registry,
     )
+    context.loss_function = build_loss_function_from_hooks(
+        torch_module=torch_module,
+        hooks=hooks,
+        runtime_context=context,
+    )
+    return context
 
 
 def _persist_training_outputs(
     context: TrainingRuntimeContext,
-    epoch_metrics: list[EpochMetric],
-    batch_metrics: list[BatchLossMetric],
+    loop_result: TrainingLoopResult,
+    run_id: str,
+    dataset_version_id: str,
+    config_hash: str,
+    random_seed: int,
 ) -> TrainingRunResult:
-    """Persist model/history/plot outputs and return summary."""
+    """Persist model/history/plot outputs and return summary metadata."""
     model_path = save_model_weights(context.output_dir, context.torch_module, context.model)
-    save_training_config(context.output_dir, context.options)
-    save_tokenizer_vocabulary(context.output_dir, context.tokenizer)
-    history_path = save_training_history(context.output_dir, epoch_metrics, batch_metrics)
-    plot_path = _try_save_plot(context.output_dir, epoch_metrics, batch_metrics)
-    return TrainingRunResult(
+    config_path = save_training_config(context.output_dir, context.options)
+    tokenizer_path = save_tokenizer_vocabulary(context.output_dir, context.tokenizer)
+    history_path = save_training_history(
+        context.output_dir,
+        loop_result.epoch_metrics,
+        loop_result.batch_metrics,
+    )
+    plot_path = _try_save_plot(
+        context.output_dir,
+        loop_result.epoch_metrics,
+        loop_result.batch_metrics,
+    )
+    reproducibility_bundle_path = save_reproducibility_bundle(
+        output_dir=context.output_dir,
+        run_id=run_id,
+        dataset_name=context.options.dataset_name,
+        dataset_version_id=dataset_version_id,
+        config_hash=config_hash,
+        random_seed=random_seed,
+        training_options=asdict(context.options),
+    )
+    base_result = TrainingRunResult(
         model_path=str(model_path),
         history_path=str(history_path),
         plot_path=str(plot_path) if plot_path else None,
-        epochs_completed=len(epoch_metrics),
+        epochs_completed=len(loop_result.epoch_metrics),
+        checkpoint_dir=str(loop_result.checkpoint_dir) if loop_result.checkpoint_dir else None,
+        best_checkpoint_path=(
+            str(loop_result.best_checkpoint_path) if loop_result.best_checkpoint_path else None
+        ),
+        resumed_from_checkpoint=loop_result.resumed_from_checkpoint,
+        run_id=run_id,
+        artifact_contract_path=None,
+    )
+    contract_path = save_training_artifact_contract(
+        output_dir=context.output_dir,
+        run_id=run_id,
+        dataset_name=context.options.dataset_name,
+        dataset_version_id=dataset_version_id,
+        parent_model_path=context.options.initial_weights_path,
+        config_hash=config_hash,
+        result=base_result,
+        tokenizer_path=str(tokenizer_path),
+        training_config_path=str(config_path),
+        reproducibility_bundle_path=str(reproducibility_bundle_path),
+    )
+    return TrainingRunResult(
+        model_path=base_result.model_path,
+        history_path=base_result.history_path,
+        plot_path=base_result.plot_path,
+        epochs_completed=base_result.epochs_completed,
+        checkpoint_dir=base_result.checkpoint_dir,
+        best_checkpoint_path=base_result.best_checkpoint_path,
+        resumed_from_checkpoint=base_result.resumed_from_checkpoint,
+        run_id=run_id,
+        artifact_contract_path=str(contract_path),
     )
 
 
 def _import_torch() -> Any:
-    """Import torch dependency.
-
-    Returns:
-        Imported torch module.
-
-    Raises:
-        ForgeDependencyError: If torch is unavailable.
-    """
+    """Import torch dependency used by training workflows."""
     try:
         import torch
     except ImportError as error:
@@ -139,7 +247,7 @@ def _build_batches(
     sequences: list[list[int]],
     options: TrainingOptions,
 ) -> tuple[list[SequenceBatch], list[SequenceBatch]]:
-    """Build train and validation sequence batches."""
+    """Build train and validation sequence batches from tokenized sequences."""
     train_sequences, validation_sequences = split_sequences(
         sequences,
         options.validation_split,
@@ -150,121 +258,8 @@ def _build_batches(
 
 
 def _resolve_training_device(torch_module: Any) -> Any:
-    """Select torch device for training."""
+    """Resolve device preference for training execution."""
     return torch_module.device("cuda" if torch_module.cuda.is_available() else "cpu")
-
-
-def _run_training_loop(
-    context: TrainingRuntimeContext,
-) -> tuple[list[EpochMetric], list[BatchLossMetric]]:
-    """Run default or custom training loop."""
-    custom_loop = load_custom_training_loop(context.options.custom_loop_path)
-    if custom_loop is None:
-        return _run_default_training_loop(context)
-    metrics = custom_loop(context)
-    _validate_metric_rows(metrics)
-    return metrics, []
-
-
-def _run_default_training_loop(
-    context: TrainingRuntimeContext,
-) -> tuple[list[EpochMetric], list[BatchLossMetric]]:
-    """Run the built-in epoch training loop."""
-    epoch_rows: list[EpochMetric] = []
-    batch_rows: list[BatchLossMetric] = []
-    global_step = 0
-    for epoch_index in range(1, context.options.epochs + 1):
-        train_loss, global_step = _run_epoch_pass(
-            context,
-            context.train_batches,
-            training=True,
-            epoch_index=epoch_index,
-            global_step=global_step,
-            batch_rows=batch_rows,
-        )
-        validation_loss, global_step = _run_epoch_pass(
-            context,
-            context.validation_batches,
-            training=False,
-            epoch_index=epoch_index,
-            global_step=global_step,
-            batch_rows=batch_rows,
-        )
-        epoch_rows.append(
-            EpochMetric(
-                epoch=epoch_index,
-                train_loss=round(train_loss, 6),
-                validation_loss=round(validation_loss, 6),
-            )
-        )
-    return epoch_rows, batch_rows
-
-
-def _run_epoch_pass(
-    context: TrainingRuntimeContext,
-    batches: list[SequenceBatch],
-    training: bool,
-    epoch_index: int,
-    global_step: int,
-    batch_rows: list[BatchLossMetric],
-) -> tuple[float, int]:
-    """Run one full pass over batches."""
-    if not batches:
-        return 0.0, global_step
-    total_loss = 0.0
-    context.model.train(mode=training)
-    for batch_index, batch in enumerate(batches, start=1):
-        inputs, targets = _tensorize_batch(context, batch)
-        logits = context.model(inputs)
-        loss = context.loss_function(
-            logits.reshape(-1, logits.shape[-1]),
-            targets.reshape(-1),
-        )
-        loss_value = float(loss.item())
-        total_loss += loss_value
-        if training:
-            context.optimizer.zero_grad()
-            loss.backward()
-            context.optimizer.step()
-            global_step += 1
-            batch_rows.append(
-                BatchLossMetric(
-                    epoch=epoch_index,
-                    batch_index=batch_index,
-                    global_step=global_step,
-                    train_loss=round(loss_value, 6),
-                )
-            )
-    return total_loss / len(batches), global_step
-
-
-def _tensorize_batch(
-    context: TrainingRuntimeContext,
-    batch: SequenceBatch,
-) -> tuple[Any, Any]:
-    """Convert batch lists to padded torch tensors."""
-    torch_module = context.torch_module
-    max_length = max(len(sequence) for sequence in batch.inputs)
-    padded_inputs = [_pad_sequence(sequence, max_length) for sequence in batch.inputs]
-    padded_targets = [_pad_sequence(sequence, max_length) for sequence in batch.targets]
-    input_tensor = torch_module.tensor(padded_inputs, dtype=torch_module.long).to(context.device)
-    target_tensor = torch_module.tensor(padded_targets, dtype=torch_module.long).to(context.device)
-    return input_tensor, target_tensor
-
-
-def _pad_sequence(sequence: list[int], max_length: int) -> list[int]:
-    """Pad sequence to max length with pad token id 0."""
-    if len(sequence) >= max_length:
-        return sequence
-    return sequence + ([0] * (max_length - len(sequence)))
-
-
-def _validate_metric_rows(metrics: list[EpochMetric]) -> None:
-    """Validate metric list from custom loop."""
-    if not metrics:
-        raise ForgeServeError(
-            "Custom loop returned no metrics. Return at least one EpochMetric row."
-        )
 
 
 def _try_save_plot(
@@ -272,8 +267,16 @@ def _try_save_plot(
     epoch_metrics: list[EpochMetric],
     batch_metrics: list[BatchLossMetric],
 ) -> Path | None:
-    """Save training plot, skipping when matplotlib is missing."""
+    """Save training plot unless plotting dependency is unavailable."""
     try:
         return save_training_plot(output_dir, epoch_metrics, batch_metrics)
     except ForgeDependencyError:
         return None
+
+
+def _invoke_error_hook(context: TrainingRuntimeContext, error: Exception) -> None:
+    """Invoke run-error hook without replacing the original training failure."""
+    try:
+        invoke_hook("on_run_error", context.hooks.on_run_error, context, str(error))
+    except ForgeServeError:
+        return

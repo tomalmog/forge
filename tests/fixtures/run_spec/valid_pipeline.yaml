@@ -1,0 +1,10 @@
+version: 1
+defaults:
+  dataset: demo
+steps:
+  - command: ingest
+    source: tests/fixtures/raw_valid/local_a.txt
+    quality_model: perplexity
+  - command: filter
+    min_quality: 0.2
+    language: en

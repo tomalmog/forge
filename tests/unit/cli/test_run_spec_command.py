@@ -1,0 +1,119 @@
+"""Unit tests for run-spec CLI execution."""
+
+from __future__ import annotations
+
+import pytest
+
+from cli.main import main
+from core.errors import ForgeRunSpecError
+from core.types import IngestOptions, MetadataFilter, TrainingRunResult
+from store.dataset_sdk import ForgeClient
+from tests.fixture_paths import fixture_path
+
+
+class _FakeDataset:
+    def __init__(self, captured: dict[str, object]) -> None:
+        self._captured = captured
+
+    def filter(self, filter_spec: MetadataFilter) -> str:
+        self._captured["filter_language"] = filter_spec.language
+        self._captured["filter_min_quality"] = filter_spec.min_quality_score
+        return "demo-v2"
+
+
+def test_cli_run_spec_executes_ingest_and_filter_steps(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Run-spec command should route each step to SDK operations."""
+    captured: dict[str, object] = {}
+
+    def _fake_ingest(self: ForgeClient, options: IngestOptions) -> str:
+        captured["ingest_dataset"] = options.dataset_name
+        captured["ingest_source"] = options.source_uri
+        return "demo-v1"
+
+    def _fake_dataset(self: ForgeClient, dataset_name: str) -> _FakeDataset:
+        captured["filter_dataset"] = dataset_name
+        return _FakeDataset(captured)
+
+    monkeypatch.setattr(ForgeClient, "ingest", _fake_ingest)
+    monkeypatch.setattr(ForgeClient, "dataset", _fake_dataset)
+    exit_code = main(["run-spec", str(fixture_path("run_spec/valid_pipeline.yaml"))])
+    output = capsys.readouterr().out.strip().splitlines()
+
+    assert (
+        exit_code == 0
+        and output == ["demo-v1", "demo-v2"]
+        and captured
+        == {
+            "ingest_dataset": "demo",
+            "ingest_source": "tests/fixtures/raw_valid/local_a.txt",
+            "filter_dataset": "demo",
+            "filter_language": "en",
+            "filter_min_quality": 0.2,
+        }
+    )
+
+
+def test_cli_run_spec_missing_dataset_raises_error() -> None:
+    """Run-spec should fail when a dataset-dependent step has no dataset."""
+    with pytest.raises(ForgeRunSpecError):
+        main(["run-spec", str(fixture_path("run_spec/missing_dataset.yaml"))])
+    assert True
+
+
+def test_cli_run_spec_train_step_parses_optimizer_and_scheduler(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Run-spec train step should forward optimizer and scheduler options."""
+    captured: dict[str, object] = {}
+
+    def _fake_train(self: ForgeClient, options) -> TrainingRunResult:
+        captured["precision_mode"] = options.precision_mode
+        captured["optimizer_type"] = options.optimizer_type
+        captured["weight_decay"] = options.weight_decay
+        captured["scheduler_type"] = options.scheduler_type
+        captured["scheduler_t_max_epochs"] = options.scheduler_t_max_epochs
+        captured["progress_log_interval_steps"] = options.progress_log_interval_steps
+        return TrainingRunResult(
+            model_path="/tmp/model.pt",
+            history_path="/tmp/history.json",
+            plot_path=None,
+            epochs_completed=2,
+        )
+
+    monkeypatch.setattr(ForgeClient, "train", _fake_train)
+    exit_code = main(["run-spec", str(fixture_path("run_spec/train_pipeline.yaml"))])
+    output = capsys.readouterr().out.strip().splitlines()
+
+    assert (
+        exit_code == 0
+        and output[0].startswith("model_path=")
+        and captured
+        == {
+            "precision_mode": "bf16",
+            "optimizer_type": "adamw",
+            "weight_decay": 0.01,
+            "scheduler_type": "cosine",
+            "scheduler_t_max_epochs": 8,
+            "progress_log_interval_steps": 4,
+        }
+    )
+
+
+def test_cli_run_spec_supports_hardware_profile_step(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Run-spec should execute hardware-profile step without dataset defaults."""
+
+    def _fake_profile(self: ForgeClient) -> dict[str, object]:
+        return {"accelerator": "cpu", "gpu_count": 0}
+
+    monkeypatch.setattr(ForgeClient, "hardware_profile", _fake_profile)
+    exit_code = main(["run-spec", str(fixture_path("run_spec/hardware_profile.yaml"))])
+    output = capsys.readouterr().out.strip().splitlines()
+
+    assert exit_code == 0 and output == ["accelerator=cpu", "gpu_count=0"]

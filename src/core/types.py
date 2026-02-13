@@ -16,17 +16,32 @@ from core.constants import (
     DEFAULT_POSITION_EMBEDDING_TYPE,
     DEFAULT_QUALITY_MODEL,
     DEFAULT_TRAIN_ATTENTION_HEADS,
+    DEFAULT_TRAIN_CHECKPOINT_EVERY_EPOCHS,
     DEFAULT_TRAIN_DROPOUT,
     DEFAULT_TRAIN_EPOCHS,
     DEFAULT_TRAIN_HIDDEN_DIM,
     DEFAULT_TRAIN_LEARNING_RATE,
+    DEFAULT_TRAIN_MAX_CHECKPOINT_FILES,
     DEFAULT_TRAIN_MLP_HIDDEN_DIM,
     DEFAULT_TRAIN_MLP_LAYERS,
     DEFAULT_TRAIN_NUM_LAYERS,
+    DEFAULT_TRAIN_OPTIMIZER_TYPE,
+    DEFAULT_TRAIN_PRECISION_MODE,
+    DEFAULT_TRAIN_PROGRESS_LOG_INTERVAL_STEPS,
+    DEFAULT_TRAIN_SCHEDULER_ETA_MIN,
+    DEFAULT_TRAIN_SCHEDULER_GAMMA,
+    DEFAULT_TRAIN_SCHEDULER_STEP_SIZE,
+    DEFAULT_TRAIN_SCHEDULER_T_MAX_EPOCHS,
+    DEFAULT_TRAIN_SCHEDULER_TYPE,
+    DEFAULT_TRAIN_SGD_MOMENTUM,
     DEFAULT_TRAIN_VALIDATION_SPLIT,
+    DEFAULT_TRAIN_WEIGHT_DECAY,
 )
 
 PositionEmbeddingType = Literal["learned", "sinusoidal"]
+PrecisionMode = Literal["auto", "fp32", "fp16", "bf16"]
+OptimizerType = Literal["adam", "adamw", "sgd"]
+SchedulerType = Literal["none", "step", "cosine"]
 
 
 @dataclass(frozen=True)
@@ -203,37 +218,25 @@ class DataLoaderOptions:
 
 @dataclass(frozen=True)
 class TrainingOptions:
-    """Training command options.
-
-    Attributes:
-        dataset_name: Dataset identifier to train on.
-        output_dir: Local output directory for artifacts.
-        version_id: Optional snapshot version id, latest if omitted.
-        architecture_path: Optional model architecture file path.
-        custom_loop_path: Optional custom loop Python file path.
-        epochs: Number of training epochs.
-        learning_rate: Optimizer learning rate.
-        batch_size: Training batch size.
-        max_token_length: Maximum tokenized sequence length.
-        validation_split: Fraction of records reserved for validation.
-        hidden_dim: Default model hidden dimension.
-        num_layers: Default model layer count.
-        attention_heads: Number of attention heads in default model blocks.
-        mlp_hidden_dim: Hidden width of default model feed-forward block.
-        mlp_layers: Number of MLP layers before vocabulary projection.
-        dropout: Dropout probability used by default model blocks.
-        position_embedding_type: Positional embedding mode for default model.
-        vocabulary_size: Optional maximum tokenizer vocabulary size.
-        initial_weights_path: Optional path to model weights for fine-tuning.
-    """
+    """Training command options used by CLI, SDK, and run-spec workflows."""
 
     dataset_name: str
     output_dir: str
     version_id: str | None = None
     architecture_path: str | None = None
     custom_loop_path: str | None = None
+    hooks_path: str | None = None
     epochs: int = DEFAULT_TRAIN_EPOCHS
     learning_rate: float = DEFAULT_TRAIN_LEARNING_RATE
+    precision_mode: PrecisionMode = DEFAULT_TRAIN_PRECISION_MODE
+    optimizer_type: OptimizerType = DEFAULT_TRAIN_OPTIMIZER_TYPE
+    weight_decay: float = DEFAULT_TRAIN_WEIGHT_DECAY
+    sgd_momentum: float = DEFAULT_TRAIN_SGD_MOMENTUM
+    scheduler_type: SchedulerType = DEFAULT_TRAIN_SCHEDULER_TYPE
+    scheduler_step_size: int = DEFAULT_TRAIN_SCHEDULER_STEP_SIZE
+    scheduler_gamma: float = DEFAULT_TRAIN_SCHEDULER_GAMMA
+    scheduler_t_max_epochs: int | None = DEFAULT_TRAIN_SCHEDULER_T_MAX_EPOCHS
+    scheduler_eta_min: float = DEFAULT_TRAIN_SCHEDULER_ETA_MIN
     batch_size: int = DEFAULT_BATCH_SIZE
     max_token_length: int = DEFAULT_MAX_TOKEN_LENGTH
     validation_split: float = DEFAULT_TRAIN_VALIDATION_SPLIT
@@ -246,6 +249,11 @@ class TrainingOptions:
     position_embedding_type: PositionEmbeddingType = DEFAULT_POSITION_EMBEDDING_TYPE
     vocabulary_size: int | None = None
     initial_weights_path: str | None = None
+    checkpoint_every_epochs: int = DEFAULT_TRAIN_CHECKPOINT_EVERY_EPOCHS
+    save_best_checkpoint: bool = True
+    max_checkpoint_files: int | None = DEFAULT_TRAIN_MAX_CHECKPOINT_FILES
+    resume_checkpoint_path: str | None = None
+    progress_log_interval_steps: int = DEFAULT_TRAIN_PROGRESS_LOG_INTERVAL_STEPS
 
 
 @dataclass(frozen=True)
@@ -282,16 +290,14 @@ class BatchLossMetric:
 
 @dataclass(frozen=True)
 class TrainingRunResult:
-    """Training command output artifacts.
-
-    Attributes:
-        model_path: Serialized model weights path.
-        history_path: Training history JSON path.
-        plot_path: Optional training plot path.
-        epochs_completed: Number of completed epochs.
-    """
+    """Training command output artifact paths and summary metadata."""
 
     model_path: str
     history_path: str
     plot_path: str | None
     epochs_completed: int
+    checkpoint_dir: str | None = None
+    best_checkpoint_path: str | None = None
+    resumed_from_checkpoint: str | None = None
+    run_id: str | None = None
+    artifact_contract_path: str | None = None

@@ -33,3 +33,7 @@ class ForgeServeError(ForgeError):
 
 class ForgeDependencyError(ForgeError):
     """Raised when an optional runtime dependency is missing."""
+
+
+class ForgeRunSpecError(ForgeError):
+    """Raised for invalid or unsupported run-spec configuration."""
