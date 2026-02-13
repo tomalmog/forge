@@ -9,7 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping
 
-from core.errors import ForgeServeError
+from core.errors import ForgeDependencyError, ForgeServeError
+from serve.model_format import detect_model_format
 
 
 def load_initial_weights(
@@ -60,14 +61,83 @@ def read_model_state_dict(
             f"Initial weights not found at {resolved_path}. "
             "Provide a valid --initial-weights-path or omit it to train from scratch."
         )
+    if detect_model_format(str(resolved_path)) == "onnx":
+        return _read_onnx_model_state_dict(torch_module, resolved_path, device)
+    checkpoint_payload = _read_torch_checkpoint(torch_module, resolved_path, device)
+    return _extract_model_state(checkpoint_payload, resolved_path)
+
+
+def _read_torch_checkpoint(torch_module: Any, weights_path: Path, device: Any) -> object:
+    """Read torch checkpoint payload with consistent error handling."""
     try:
-        checkpoint_payload = torch_module.load(str(resolved_path), map_location=device)
+        return torch_module.load(str(weights_path), map_location=device)
     except (OSError, RuntimeError) as error:
         raise ForgeServeError(
-            f"Failed to load initial weights from {resolved_path}: {error}. "
+            f"Failed to load initial weights from {weights_path}: {error}. "
             "Verify the checkpoint file is readable and valid."
         ) from error
-    return _extract_model_state(checkpoint_payload, resolved_path)
+
+
+def _read_onnx_model_state_dict(
+    torch_module: Any,
+    weights_path: Path,
+    device: Any,
+) -> Mapping[str, object]:
+    """Read ONNX initializer tensors as a torch-compatible state dict."""
+    onnx_module = _import_onnx_optional()
+    numpy_helper = getattr(onnx_module, "numpy_helper", None)
+    if numpy_helper is None:
+        raise ForgeServeError(
+            f"Failed to read ONNX initializers from {weights_path}: numpy_helper is missing."
+        )
+    try:
+        onnx_model = onnx_module.load(str(weights_path))
+    except Exception as error:
+        raise ForgeServeError(
+            f"Failed to load ONNX model weights from {weights_path}: {error}. "
+            "Verify the ONNX file is readable and valid."
+        ) from error
+    return _extract_onnx_initializers(torch_module, onnx_model, numpy_helper, weights_path, device)
+
+
+def _extract_onnx_initializers(
+    torch_module: Any,
+    onnx_model: Any,
+    numpy_helper: Any,
+    weights_path: Path,
+    device: Any,
+) -> Mapping[str, object]:
+    """Convert ONNX initializer payload into model state mapping."""
+    graph = getattr(onnx_model, "graph", None)
+    initializers = list(getattr(graph, "initializer", []))
+    if not initializers:
+        raise ForgeServeError(
+            f"Invalid ONNX weights at {weights_path}: graph contains no initializer tensors."
+        )
+    state_dict: dict[str, object] = {}
+    for initializer in initializers:
+        parameter_name = str(getattr(initializer, "name", ""))
+        if not parameter_name:
+            continue
+        parameter_array = numpy_helper.to_array(initializer)
+        state_dict[parameter_name] = torch_module.tensor(parameter_array, device=device)
+    if not state_dict:
+        raise ForgeServeError(
+            f"Invalid ONNX weights at {weights_path}: no named initializer tensors found."
+        )
+    return state_dict
+
+
+def _import_onnx_optional() -> Any:
+    """Import ONNX dependency used for ONNX initial-weights loading."""
+    try:
+        import onnx
+    except ImportError as error:
+        raise ForgeDependencyError(
+            "Loading ONNX initial weights requires onnx, but it is not installed. "
+            "Install with pip install -e .[onnx] before using --initial-weights-path on .onnx."
+        ) from error
+    return onnx
 
 
 def _apply_model_state(model: Any, model_state: Mapping[str, object], weights_path: Path) -> None:

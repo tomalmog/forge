@@ -62,6 +62,7 @@ scripts/run_release_gate.sh
 - Structured logging: `pip install -e .[logging]`
 - Lance conversion: `pip install -e .[lance]`
 - PyTorch serving: `pip install -e .[serve]`
+- ONNX model support (chat + initial-weights loading): `pip install -e .[onnx]`
 
 ## Training
 
@@ -123,6 +124,15 @@ forge train \
   --initial-weights-path ./outputs/train/demo/model.pt
 ```
 
+Fine-tune from ONNX initializer weights:
+
+```bash
+forge train \
+  --dataset demo \
+  --output-dir ./outputs/train/demo-from-onnx \
+  --initial-weights-path ./exports/model.onnx
+```
+
 Run a chat inference check against trained weights:
 
 ```bash
@@ -130,6 +140,15 @@ forge chat \
   --dataset demo \
   --model-path ./outputs/train/demo/model.pt \
   --position-embedding-type learned \
+  --prompt "hello"
+```
+
+Run chat inference against an ONNX model artifact:
+
+```bash
+forge chat \
+  --dataset demo \
+  --model-path ./exports/model.onnx \
   --prompt "hello"
 ```
 

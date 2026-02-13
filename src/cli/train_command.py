@@ -118,7 +118,8 @@ def add_train_command(subparsers: Any) -> None:
         help="Optional .py hook module with run/epoch/batch callback functions",
     )
     parser.add_argument(
-        "--initial-weights-path", help="Optional model.pt path used as initial weights"
+        "--initial-weights-path",
+        help="Optional model artifact (.pt or .onnx) used as initial weights",
     )
     parser.add_argument("--epochs", type=int, default=DEFAULT_TRAIN_EPOCHS, help="Training epochs")
     parser.add_argument(

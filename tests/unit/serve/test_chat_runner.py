@@ -42,3 +42,29 @@ def test_run_chat_raises_without_torch(monkeypatch) -> None:
         run_chat(_build_records(), options)
 
     assert True
+
+
+def test_run_chat_routes_onnx_models_to_onnx_runner(monkeypatch) -> None:
+    """ONNX model paths should use ONNX runtime path instead of torch loading."""
+    captured: dict[str, object] = {}
+
+    def _fake_onnx_runner(records, options):
+        captured["dataset"] = options.dataset_name
+        captured["model_path"] = options.model_path
+        _ = records
+        return "onnx response"
+
+    monkeypatch.setattr("serve.chat_runner.run_onnx_chat", _fake_onnx_runner)
+    options = ChatOptions(
+        dataset_name="demo",
+        model_path="./outputs/train/demo/model.onnx",
+        prompt="hello",
+    )
+
+    result = run_chat(_build_records(), options)
+
+    assert (
+        result.response_text == "onnx response"
+        and captured["dataset"] == "demo"
+        and str(captured["model_path"]).endswith(".onnx")
+    )

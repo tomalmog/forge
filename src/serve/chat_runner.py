@@ -19,7 +19,9 @@ from serve.chat_option_resolver import (
     resolve_chat_training_options,
 )
 from serve.device_selection import resolve_execution_device
+from serve.model_format import detect_model_format
 from serve.model_weights import load_initial_weights, read_model_state_dict
+from serve.onnx_chat_runner import run_onnx_chat
 from serve.training_setup import validate_training_options
 
 
@@ -48,6 +50,11 @@ def run_chat(records: list[DataRecord], options: ChatOptions) -> ChatResult:
     Raises:
         ForgeServeError: If model loading or generation fails.
     """
+    _validate_chat_options(options)
+    model_format = detect_model_format(options.model_path)
+    if model_format == "onnx":
+        response_text = run_onnx_chat(records, options)
+        return ChatResult(response_text=response_text)
     context = _build_runtime_context(records, options)
     response_text = _generate_response_text(context)
     return ChatResult(response_text=response_text)
@@ -59,7 +66,6 @@ def _build_runtime_context(
 ) -> ChatRuntimeContext:
     """Build chat runtime context from dataset records and options."""
     torch_module = _import_torch()
-    _validate_chat_options(options)
     device = _resolve_inference_device(torch_module)
     model_state = read_model_state_dict(torch_module, options.model_path, device)
     training_options = resolve_chat_training_options(options, model_state)

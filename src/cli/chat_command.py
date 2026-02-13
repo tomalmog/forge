@@ -64,7 +64,11 @@ def add_chat_command(subparsers: Any) -> None:
         help="Generate a model response from trained weights and a text prompt",
     )
     parser.add_argument("--dataset", required=True, help="Dataset name used for tokenizer")
-    parser.add_argument("--model-path", required=True, help="Path to trained model weights file")
+    parser.add_argument(
+        "--model-path",
+        required=True,
+        help="Path to trained model file (.pt or .onnx)",
+    )
     parser.add_argument("--prompt", required=True, help="Prompt text to complete")
     parser.add_argument("--version-id", help="Optional specific dataset version id")
     parser.add_argument("--architecture-file", help="Optional .py or .json model architecture file")
