@@ -13,15 +13,17 @@ import { usePipelineGraphState } from "./hooks/use_pipeline_graph_state";
 import { loadSessionState, saveSessionState } from "./session_state";
 import {
   DatasetDashboard,
+  LineageGraphSummary,
   RecordSample,
+  TrainingRunSummary,
   VersionDiff,
   VersionSummary,
 } from "./types";
 import { PanelVisibility } from "./view_controls";
+import { loadRuntimeInsights } from "./runtime_insights";
 import "./App.css";
 
 const INITIAL_SESSION = loadSessionState();
-
 function App() {
   const [dataRoot, setDataRoot] = useState(INITIAL_SESSION.data_root);
   const [datasets, setDatasets] = useState<string[]>([]);
@@ -41,6 +43,14 @@ function App() {
     INITIAL_SESSION.target_version,
   );
   const [samples, setSamples] = useState<RecordSample[]>([]);
+  const [trainingRuns, setTrainingRuns] = useState<TrainingRunSummary[]>([]);
+  const [lineageGraph, setLineageGraph] = useState<LineageGraphSummary | null>(
+    null,
+  );
+  const [hardwareProfile, setHardwareProfile] = useState<Record<
+    string,
+    string
+  > | null>(null);
   const [isViewControlsOpen, setIsViewControlsOpen] = useState(
     INITIAL_SESSION.is_view_controls_open,
   );
@@ -65,6 +75,7 @@ function App() {
       if (selectedDataset) {
         await refreshDatasetDetails(selectedDataset, selectedVersion);
       }
+      await refreshRuntimeInsights();
     },
   });
 
@@ -78,6 +89,10 @@ function App() {
     }
     refreshDatasetDetails(selectedDataset, selectedVersion).catch(logUiError);
   }, [selectedDataset, selectedVersion]);
+
+  useEffect(() => {
+    refreshRuntimeInsights().catch(logUiError);
+  }, [dataRoot]);
 
   useEffect(() => {
     saveSessionState({
@@ -182,6 +197,13 @@ function App() {
     setDiff(result);
   }
 
+  async function refreshRuntimeInsights() {
+    const snapshot = await loadRuntimeInsights(dataRoot);
+    setTrainingRuns(snapshot.runs);
+    setLineageGraph(snapshot.lineage);
+    setHardwareProfile(snapshot.hardwareProfile);
+  }
+
   function onDatasetSelect(datasetName: string) {
     setSelectedDataset(datasetName);
     setSelectedVersion(null);
@@ -255,6 +277,12 @@ function App() {
         onHistoryPathChange={pipeline.set_history_path}
         onLoadHistory={() => pipeline.load_history().catch(logUiError)}
         consoleOutput={pipeline.console_output}
+        hardwareProfile={hardwareProfile}
+        trainingRuns={trainingRuns}
+        lineage={lineageGraph}
+        onRefreshRuntimeInsights={() =>
+          refreshRuntimeInsights().catch(logUiError)
+        }
       />
       <ViewControlDrawer
         isOpen={isViewControlsOpen}
@@ -266,8 +294,7 @@ function App() {
   );
 }
 
-function logUiError(error: unknown) {
+const logUiError = (error: unknown): void => {
   console.error(error);
-}
-
+};
 export default App;

@@ -8,6 +8,7 @@ export interface PanelVisibility {
   pipeline_builder: boolean;
   chat_room: boolean;
   training_curves: boolean;
+  runtime_insights: boolean;
   run_console: boolean;
 }
 
@@ -26,6 +27,7 @@ export const DEFAULT_PANEL_VISIBILITY: PanelVisibility = {
   pipeline_builder: true,
   chat_room: true,
   training_curves: true,
+  runtime_insights: true,
   run_console: true,
 };
 
@@ -39,6 +41,7 @@ export const VIEW_CONTROL_ITEMS: ViewControlItem[] = [
   { key: "pipeline_builder", label: "Pipeline Builder" },
   { key: "chat_room", label: "Chat Room" },
   { key: "training_curves", label: "Training Curves" },
+  { key: "runtime_insights", label: "Runtime Insights" },
   { key: "run_console", label: "Run Console" },
 ];
 

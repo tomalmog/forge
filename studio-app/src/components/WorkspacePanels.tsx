@@ -5,12 +5,15 @@ import { SampleInspector } from "./SampleInspector";
 import { StatusConsole } from "./StatusConsole";
 import { TrainingCurvesView } from "./TrainingCurvesView";
 import { VersionDiffView } from "./VersionDiffView";
+import { RuntimeInsightsView } from "./RuntimeInsightsView";
 import {
   DatasetDashboard,
+  LineageGraphSummary,
   PipelineEdge,
   PipelineNode,
   PipelineNodeType,
   RecordSample,
+  TrainingRunSummary,
   TrainingHistory,
   VersionDiff,
   VersionSummary,
@@ -59,6 +62,10 @@ interface WorkspacePanelsProps {
   onHistoryPathChange: (value: string) => void;
   onLoadHistory: () => void;
   consoleOutput: string;
+  hardwareProfile: Record<string, string> | null;
+  trainingRuns: TrainingRunSummary[];
+  lineage: LineageGraphSummary | null;
+  onRefreshRuntimeInsights: () => void;
 }
 
 export function WorkspacePanels(props: WorkspacePanelsProps) {
@@ -137,6 +144,14 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
           history={props.history}
           onHistoryPathChange={props.onHistoryPathChange}
           onLoadHistory={props.onLoadHistory}
+        />
+      )}
+      {props.panelVisibility.runtime_insights && (
+        <RuntimeInsightsView
+          hardwareProfile={props.hardwareProfile}
+          trainingRuns={props.trainingRuns}
+          lineage={props.lineage}
+          onRefresh={props.onRefreshRuntimeInsights}
         />
       )}
       {props.panelVisibility.run_console && (

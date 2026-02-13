@@ -18,6 +18,7 @@ from serve.chat_option_resolver import (
     resolve_chat_tokenizer,
     resolve_chat_training_options,
 )
+from serve.device_selection import resolve_execution_device
 from serve.model_weights import load_initial_weights, read_model_state_dict
 from serve.training_setup import validate_training_options
 
@@ -101,7 +102,7 @@ def _import_torch() -> Any:
 
 def _resolve_inference_device(torch_module: Any) -> Any:
     """Select torch device for inference."""
-    return torch_module.device("cuda" if torch_module.cuda.is_available() else "cpu")
+    return resolve_execution_device(torch_module)
 
 
 def _validate_chat_options(options: ChatOptions) -> None:

@@ -101,3 +101,39 @@ export interface PipelineEdge {
 export interface PipelineCanvasExportResult {
   output_path: string;
 }
+
+export interface TrainingRunSummary {
+  run_id: string;
+  dataset_name: string;
+  dataset_version_id: string;
+  state: string;
+  updated_at: string;
+  output_dir: string;
+  artifact_contract_path: string | null;
+  model_path: string | null;
+}
+
+export interface LineageRunNode {
+  run_id: string;
+  dataset_name: string;
+  dataset_version_id: string;
+  output_dir: string;
+  parent_model_path: string | null;
+  model_path: string | null;
+  config_hash: string;
+  created_at: string;
+  artifact_contract_path: string | null;
+}
+
+export interface LineageEdge {
+  from: string;
+  to: string;
+  type: string;
+}
+
+export interface LineageGraphSummary {
+  run_count: number;
+  edge_count: number;
+  runs: LineageRunNode[];
+  edges: LineageEdge[];
+}

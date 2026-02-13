@@ -113,3 +113,44 @@ pub struct PipelineEdgeSnapshot {
 pub struct PipelineCanvasExportResult {
     pub output_path: String,
 }
+
+#[derive(Debug, Serialize)]
+pub struct TrainingRunSummary {
+    pub run_id: String,
+    pub dataset_name: String,
+    pub dataset_version_id: String,
+    pub state: String,
+    pub updated_at: String,
+    pub output_dir: String,
+    pub artifact_contract_path: Option<String>,
+    pub model_path: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LineageRunNode {
+    pub run_id: String,
+    pub dataset_name: String,
+    pub dataset_version_id: String,
+    pub output_dir: String,
+    pub parent_model_path: Option<String>,
+    pub model_path: Option<String>,
+    pub config_hash: String,
+    pub created_at: String,
+    pub artifact_contract_path: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LineageEdge {
+    pub from: String,
+    pub to: String,
+    #[serde(rename = "type")]
+    pub edge_type: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LineageGraphSummary {
+    pub run_count: u64,
+    pub edge_count: u64,
+    pub runs: Vec<LineageRunNode>,
+    pub edges: Vec<LineageEdge>,
+}

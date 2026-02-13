@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from core.types import PrecisionMode
+from serve.device_selection import is_mps_available
 
 
 @dataclass(frozen=True)
@@ -47,23 +48,25 @@ def detect_hardware_profile(torch_module: Any | None = None) -> HardwareProfile:
     if runtime_torch is None:
         return _cpu_profile()
     cuda_module = getattr(runtime_torch, "cuda", None)
-    if cuda_module is None or not bool(cuda_module.is_available()):
-        return _cpu_profile()
-    gpu_count = int(cuda_module.device_count())
-    gpus = tuple(_read_gpu_hardware(cuda_module, index) for index in range(gpu_count))
-    bf16_supported = _read_bf16_support(cuda_module)
-    precision_mode: PrecisionMode = "bf16" if bf16_supported else "fp16"
-    suggested_profile = _suggest_profile(gpus)
-    batch_size = _recommend_batch_size(gpus)
-    return HardwareProfile(
-        accelerator="cuda",
-        gpu_count=gpu_count,
-        gpus=gpus,
-        bf16_supported=bf16_supported,
-        recommended_precision_mode=precision_mode,
-        recommended_batch_size=batch_size,
-        suggested_profile=suggested_profile,
-    )
+    if cuda_module is not None and bool(cuda_module.is_available()):
+        gpu_count = int(cuda_module.device_count())
+        gpus = tuple(_read_gpu_hardware(cuda_module, index) for index in range(gpu_count))
+        bf16_supported = _read_bf16_support(cuda_module)
+        precision_mode: PrecisionMode = "bf16" if bf16_supported else "fp16"
+        suggested_profile = _suggest_profile(gpus)
+        batch_size = _recommend_batch_size(gpus)
+        return HardwareProfile(
+            accelerator="cuda",
+            gpu_count=gpu_count,
+            gpus=gpus,
+            bf16_supported=bf16_supported,
+            recommended_precision_mode=precision_mode,
+            recommended_batch_size=batch_size,
+            suggested_profile=suggested_profile,
+        )
+    if is_mps_available(runtime_torch):
+        return _mps_profile()
+    return _cpu_profile()
 
 
 def _import_torch_optional() -> Any | None:
@@ -83,6 +86,25 @@ def _cpu_profile() -> HardwareProfile:
         recommended_precision_mode="fp32",
         recommended_batch_size=4,
         suggested_profile="cpu",
+    )
+
+
+def _mps_profile() -> HardwareProfile:
+    return HardwareProfile(
+        accelerator="mps",
+        gpu_count=1,
+        gpus=(
+            GpuHardware(
+                index=0,
+                name="Apple MPS",
+                total_memory_gb=0.0,
+                capability=None,
+            ),
+        ),
+        bf16_supported=False,
+        recommended_precision_mode="fp32",
+        recommended_batch_size=8,
+        suggested_profile="apple_mps",
     )
 
 

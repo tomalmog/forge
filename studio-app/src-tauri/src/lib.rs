@@ -18,7 +18,10 @@ pub fn run() {
             commands::dataset_queries::sample_records,
             commands::dataset_queries::version_diff,
             commands::forge_commands::start_forge_command,
-            commands::forge_commands::get_forge_command_status
+            commands::forge_commands::get_forge_command_status,
+            commands::runtime_queries::list_training_runs,
+            commands::runtime_queries::get_lineage_graph,
+            commands::runtime_queries::get_hardware_profile
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -41,6 +41,21 @@ PyTorch training smoke test:
 scripts/run_training_smoke_test.sh
 ```
 
+Platform verification command:
+
+```bash
+forge verify --mode quick
+forge verify --mode full --keep-artifacts
+```
+
+Verification coverage and manual test steps live in `docs/verification_matrix.md`.
+
+Release merge gate:
+
+```bash
+scripts/run_release_gate.sh
+```
+
 ## Optional Dependencies
 
 - S3 ingest/export: `pip install -e .[s3]`

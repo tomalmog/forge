@@ -209,6 +209,10 @@ function parsePanelVisibility(value: unknown): PanelVisibility {
       raw.training_curves,
       defaultVisibility.training_curves,
     ),
+    runtime_insights: asBoolean(
+      raw.runtime_insights,
+      defaultVisibility.runtime_insights,
+    ),
     run_console: asBoolean(raw.run_console, defaultVisibility.run_console),
   };
 }

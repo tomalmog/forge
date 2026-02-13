@@ -37,3 +37,7 @@ class ForgeDependencyError(ForgeError):
 
 class ForgeRunSpecError(ForgeError):
     """Raised for invalid or unsupported run-spec configuration."""
+
+
+class ForgeVerificationError(ForgeError):
+    """Raised when automated verification checks fail."""

@@ -17,6 +17,8 @@ This is a planning document only. No code is implied by this file.
   - `S-007` Training checkpoints (periodic save, best checkpoint, resume, retention).
   - `T-007` Optimizer/scheduler customization in CLI, YAML run-spec, and runtime.
   - `S-004` Mixed precision runtime (`auto`, `fp32`, `fp16`, `bf16`) with safe fallback.
+  - `Q-001` Verification matrix workflow (`forge verify` + `docs/verification_matrix.md` + release gate script).
+  - `U-001` Studio runtime insights views (training lifecycle runs, lineage summary, hardware profile panel).
 - In progress now:
   - `S-009` Runtime telemetry (basic progress + ETA done; hardware/utilization metrics still open).
 - Next implementation queue:

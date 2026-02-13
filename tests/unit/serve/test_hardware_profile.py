@@ -34,11 +34,32 @@ class _FakeCuda:
         return _FakeDeviceProps(self._device_name, self._total_memory, 9, 0)
 
 
+class _FakeMpsBackend:
+    def __init__(self, available: bool) -> None:
+        self._available = available
+
+    def is_available(self) -> bool:
+        return self._available
+
+
+class _FakeBackends:
+    def __init__(self, mps_available: bool) -> None:
+        self.mps = _FakeMpsBackend(available=mps_available)
+
+
 class _FakeTorch:
-    def __init__(self, available: bool, bf16: bool, device_name: str, memory_gb: int) -> None:
+    def __init__(
+        self,
+        available: bool,
+        bf16: bool,
+        device_name: str,
+        memory_gb: int,
+        mps_available: bool = False,
+    ) -> None:
         self.cuda = _FakeCuda(
             available=available, bf16=bf16, device_name=device_name, memory_gb=memory_gb
         )
+        self.backends = _FakeBackends(mps_available=mps_available)
 
 
 def test_detect_hardware_profile_returns_cpu_defaults_when_cuda_unavailable() -> None:
@@ -61,4 +82,24 @@ def test_detect_hardware_profile_detects_a100_and_bf16() -> None:
         and profile.suggested_profile == "a100"
         and profile.recommended_precision_mode == "bf16"
         and profile.recommended_batch_size == 64
+    )
+
+
+def test_detect_hardware_profile_uses_mps_when_cuda_is_unavailable() -> None:
+    """Detector should expose MPS profile on Apple silicon setups."""
+    profile = detect_hardware_profile(
+        torch_module=_FakeTorch(
+            available=False,
+            bf16=False,
+            device_name="none",
+            memory_gb=0,
+            mps_available=True,
+        )
+    )
+
+    assert (
+        profile.accelerator == "mps"
+        and profile.gpu_count == 1
+        and profile.recommended_precision_mode == "fp32"
+        and profile.suggested_profile == "apple_mps"
     )

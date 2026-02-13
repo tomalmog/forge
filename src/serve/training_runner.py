@@ -14,6 +14,7 @@ from typing import Any
 from core.errors import ForgeDependencyError, ForgeServeError
 from core.types import BatchLossMetric, DataRecord, EpochMetric, TrainingOptions, TrainingRunResult
 from serve.architecture_loader import load_training_model
+from serve.device_selection import resolve_execution_device
 from serve.model_weights import load_initial_weights
 from serve.tokenization import (
     SequenceBatch,
@@ -259,7 +260,7 @@ def _build_batches(
 
 def _resolve_training_device(torch_module: Any) -> Any:
     """Resolve device preference for training execution."""
-    return torch_module.device("cuda" if torch_module.cuda.is_available() else "cpu")
+    return resolve_execution_device(torch_module)
 
 
 def _try_save_plot(

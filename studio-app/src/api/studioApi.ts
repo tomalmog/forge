@@ -4,9 +4,11 @@ import {
   CommandTaskStatus,
   DatasetDashboard,
   PipelineCanvasExportResult,
+  LineageGraphSummary,
   PipelineEdge,
   PipelineNode,
   RecordSample,
+  TrainingRunSummary,
   TrainingHistory,
   VersionDiff,
   VersionSummary,
@@ -98,4 +100,22 @@ export async function exportPipelineCanvas(
     startNodeId,
     outputPath,
   });
+}
+
+export async function listTrainingRuns(
+  dataRoot: string,
+): Promise<TrainingRunSummary[]> {
+  return invoke<TrainingRunSummary[]>("list_training_runs", { dataRoot });
+}
+
+export async function getLineageGraph(
+  dataRoot: string,
+): Promise<LineageGraphSummary> {
+  return invoke<LineageGraphSummary>("get_lineage_graph", { dataRoot });
+}
+
+export async function getHardwareProfile(
+  dataRoot: string,
+): Promise<Record<string, string>> {
+  return invoke<Record<string, string>>("get_hardware_profile", { dataRoot });
 }
