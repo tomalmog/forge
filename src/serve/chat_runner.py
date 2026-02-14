@@ -7,9 +7,9 @@ responses from prompt input using training-compatible settings.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
-from core.chat_types import ChatOptions, ChatResult
+from core.chat_types import ChatOptions, ChatResult, ChatTokenizer
 from core.errors import ForgeDependencyError, ForgeServeError
 from core.types import DataRecord
 from serve.architecture_loader import load_training_model
@@ -31,17 +31,18 @@ class ChatRuntimeContext:
 
     torch_module: Any
     model: Any
-    tokenizer: Any
+    tokenizer: ChatTokenizer
     options: ChatOptions
     device: Any
     max_context_tokens: int
 
 
-def run_chat(records: list[DataRecord], options: ChatOptions) -> ChatResult:
+def run_chat(records: list[DataRecord] | None, options: ChatOptions) -> ChatResult:
     """Run one model chat inference call.
 
     Args:
-        records: Dataset records used to reconstruct tokenizer vocabulary.
+        records: Dataset records for tokenizer fallback, or None when a
+            persisted or explicit tokenizer is available.
         options: Chat inference options.
 
     Returns:
@@ -61,7 +62,7 @@ def run_chat(records: list[DataRecord], options: ChatOptions) -> ChatResult:
 
 
 def _build_runtime_context(
-    records: list[DataRecord],
+    records: list[DataRecord] | None,
     options: ChatOptions,
 ) -> ChatRuntimeContext:
     """Build chat runtime context from dataset records and options."""
@@ -129,6 +130,8 @@ def _validate_chat_options(options: ChatOptions) -> None:
 
 def _generate_response_text(context: ChatRuntimeContext) -> str:
     """Generate response text from prompt with autoregressive decoding."""
+    import sys
+
     options = context.options
     prompt_ids = context.tokenizer.encode(options.prompt, context.max_context_tokens)
     if not prompt_ids:
@@ -141,9 +144,13 @@ def _generate_response_text(context: ChatRuntimeContext) -> str:
             break
         context_ids.append(next_token_id)
         generated_ids.append(next_token_id)
+        if options.stream:
+            token_text = context.tokenizer.decode([next_token_id])
+            sys.stdout.write(token_text)
+            sys.stdout.flush()
     if not generated_ids:
         return ""
-    decoded = cast(str, context.tokenizer.decode(generated_ids))
+    decoded = context.tokenizer.decode(generated_ids)
     return decoded.strip()
 
 

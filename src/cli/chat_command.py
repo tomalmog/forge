@@ -31,9 +31,10 @@ from store.dataset_sdk import ForgeClient
 def run_chat_command(client: ForgeClient, args: argparse.Namespace) -> int:
     """Handle chat command invocation."""
     options = ChatOptions(
-        dataset_name=args.dataset,
         model_path=args.model_path,
         prompt=args.prompt,
+        dataset_name=args.dataset,
+        tokenizer_path=args.tokenizer_path,
         version_id=args.version_id,
         architecture_path=args.architecture_file,
         max_new_tokens=args.max_new_tokens,
@@ -51,9 +52,10 @@ def run_chat_command(client: ForgeClient, args: argparse.Namespace) -> int:
             args.position_embedding_type,
         ),
         vocabulary_size=args.vocabulary_size,
+        stream=True,
     )
-    result = client.chat(options)
-    print(result.response_text)
+    client.chat(options)
+    print()
     return 0
 
 
@@ -63,7 +65,16 @@ def add_chat_command(subparsers: Any) -> None:
         "chat",
         help="Generate a model response from trained weights and a text prompt",
     )
-    parser.add_argument("--dataset", required=True, help="Dataset name used for tokenizer")
+    parser.add_argument(
+        "--dataset",
+        default=None,
+        help="Dataset name for tokenizer fallback (optional if vocab.json exists beside model)",
+    )
+    parser.add_argument(
+        "--tokenizer-path",
+        default=None,
+        help="Path to tokenizer vocabulary JSON file (overrides --dataset and auto-detected vocab)",
+    )
     parser.add_argument(
         "--model-path",
         required=True,

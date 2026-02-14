@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Dispatch, FormEvent, SetStateAction, useEffect, useMemo, useState } from "react";
 import { getForgeCommandStatus, startForgeCommand } from "../api/studioApi";
 
 interface ChatRoomViewProps {
@@ -11,7 +11,7 @@ interface ChatMessage {
   content: string;
 }
 
-const CHAT_POLL_MS = 700;
+const CHAT_POLL_MS = 100;
 const SAMPLING_PRESETS = {
   deterministic: { maxNewTokens: "80", temperature: "0", topK: "0" },
   balanced: { maxNewTokens: "120", temperature: "0.7", topK: "40" },
@@ -21,8 +21,9 @@ type SamplingPreset = keyof typeof SAMPLING_PRESETS | "custom";
 
 export function ChatRoomView(props: ChatRoomViewProps) {
   const [datasetName, setDatasetName] = useState(
-    props.selectedDataset ?? "demo",
+    props.selectedDataset ?? "",
   );
+  const [tokenizerPath, setTokenizerPath] = useState("");
   const [modelPath, setModelPath] = useState("./outputs/train/demo/model.pt");
   const [versionId, setVersionId] = useState("");
   const [maxNewTokens, setMaxNewTokens] = useState("120");
@@ -46,11 +47,10 @@ export function ChatRoomView(props: ChatRoomViewProps) {
 
   const canSend = useMemo(
     () =>
-      datasetName.trim().length > 0 &&
       modelPath.trim().length > 0 &&
       draftMessage.trim().length > 0 &&
       !isSending,
-    [datasetName, modelPath, draftMessage, isSending],
+    [modelPath, draftMessage, isSending],
   );
 
   async function onSendMessage(event: FormEvent) {
@@ -67,6 +67,7 @@ export function ChatRoomView(props: ChatRoomViewProps) {
       const prompt = buildPromptText(messages, userText);
       const args = buildChatArgs({
         datasetName,
+        tokenizerPath,
         modelPath,
         prompt,
         versionId,
@@ -76,19 +77,24 @@ export function ChatRoomView(props: ChatRoomViewProps) {
         maxTokenLength,
         positionEmbeddingType,
       });
+      setMessages((current) => [
+        ...current,
+        { role: "assistant", content: "" },
+      ]);
       const taskStart = await startForgeCommand(props.dataRoot, args);
-      const taskStatus = await waitForChatTask(taskStart.task_id);
+      const taskStatus = await streamChatTask(taskStart.task_id, setMessages);
       if (taskStatus.status !== "completed" || taskStatus.exit_code !== 0) {
         throw new Error(taskStatus.stderr || "Chat command failed.");
       }
       const responseText = parseResponseText(taskStatus.stdout);
-      setMessages((current) => [
-        ...current,
-        {
+      setMessages((current) => {
+        const updated = [...current];
+        updated[updated.length - 1] = {
           role: "assistant",
           content: responseText || "(no response generated)",
-        },
-      ]);
+        };
+        return updated;
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setChatError(message);
@@ -106,6 +112,15 @@ export function ChatRoomView(props: ChatRoomViewProps) {
           <input
             value={datasetName}
             onChange={(event) => setDatasetName(event.currentTarget.value)}
+            placeholder="optional"
+          />
+        </label>
+        <label>
+          tokenizer_path
+          <input
+            value={tokenizerPath}
+            onChange={(event) => setTokenizerPath(event.currentTarget.value)}
+            placeholder="auto-detect from model dir"
           />
         </label>
         <label>
@@ -251,9 +266,23 @@ export function ChatRoomView(props: ChatRoomViewProps) {
   }
 }
 
-async function waitForChatTask(taskId: string) {
+async function streamChatTask(
+  taskId: string,
+  setMessages: Dispatch<SetStateAction<ChatMessage[]>>,
+) {
   while (true) {
     const status = await getForgeCommandStatus(taskId);
+    const partialText = parseResponseText(status.stdout);
+    if (partialText.length > 0) {
+      setMessages((current) => {
+        const updated = [...current];
+        updated[updated.length - 1] = {
+          role: "assistant",
+          content: partialText,
+        };
+        return updated;
+      });
+    }
     if (status.status !== "running") {
       return status;
     }
@@ -278,6 +307,7 @@ function buildPromptText(
 
 interface ChatArgOptions {
   datasetName: string;
+  tokenizerPath: string;
   modelPath: string;
   prompt: string;
   versionId: string;
@@ -291,13 +321,13 @@ interface ChatArgOptions {
 function buildChatArgs(options: ChatArgOptions): string[] {
   const args = [
     "chat",
-    "--dataset",
-    options.datasetName.trim(),
     "--model-path",
     options.modelPath.trim(),
     "--prompt",
     options.prompt,
   ];
+  appendOptionalArg(args, "--dataset", options.datasetName);
+  appendOptionalArg(args, "--tokenizer-path", options.tokenizerPath);
   appendOptionalArg(args, "--version-id", options.versionId);
   appendOptionalArg(args, "--max-new-tokens", options.maxNewTokens);
   appendOptionalArg(args, "--temperature", options.temperature);

@@ -11,6 +11,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import cast
 
+from core.chat_types import ChatTokenizer
 from core.constants import (
     DEFAULT_TOKENIZER_VOCAB_FILE_NAME,
     DEFAULT_TRAINING_CONFIG_FILE_NAME,
@@ -51,25 +52,96 @@ def load_training_config(model_path: str) -> dict[str, object] | None:
     return cast(dict[str, object], payload)
 
 
-def load_tokenizer(model_path: str) -> VocabularyTokenizer | None:
-    """Load persisted training tokenizer located beside model weights."""
+def load_tokenizer(model_path: str) -> ChatTokenizer | None:
+    """Load persisted training tokenizer located beside model weights.
+
+    Returns None if no vocabulary file exists next to the model.
+    """
     vocabulary_path = _artifact_dir(model_path) / DEFAULT_TOKENIZER_VOCAB_FILE_NAME
     if not vocabulary_path.exists():
         return None
-    payload = _read_json_payload(vocabulary_path)
+    return load_tokenizer_from_path(str(vocabulary_path))
+
+
+def load_tokenizer_from_path(vocabulary_path: str) -> ChatTokenizer:
+    """Load tokenizer from an explicit file path.
+
+    Supports two formats:
+    - Forge flat vocabulary: ``{"token": id, ...}``
+    - HuggingFace tokenizer.json: loaded via the ``tokenizers`` library for
+      full BPE/WordPiece/Unigram encode/decode support.
+
+    Args:
+        vocabulary_path: Absolute or relative path to a JSON vocabulary file.
+
+    Returns:
+        Loaded tokenizer instance.
+
+    Raises:
+        ForgeServeError: If the file is missing, malformed, or has invalid entries.
+    """
+    resolved_path = Path(vocabulary_path).expanduser().resolve()
+    if not resolved_path.exists():
+        raise ForgeServeError(
+            f"Tokenizer vocabulary file not found at {resolved_path}. "
+            "Provide a valid --tokenizer-path or re-run training to generate vocab.json."
+        )
+    payload = _read_json_payload(resolved_path)
     if not isinstance(payload, dict):
         raise ForgeServeError(
-            f"Invalid tokenizer vocabulary format at {vocabulary_path}: expected JSON object."
+            f"Invalid tokenizer vocabulary format at {resolved_path}: expected JSON object."
         )
+    if _is_huggingface_tokenizer(payload):
+        from serve.huggingface_tokenizer import load_huggingface_tokenizer
+
+        return load_huggingface_tokenizer(str(resolved_path))
+    raw_vocab = _extract_vocabulary_mapping(payload, resolved_path)
+    return _validate_vocabulary(raw_vocab, resolved_path)
+
+
+def _is_huggingface_tokenizer(payload: dict[str, object]) -> bool:
+    """Return True if the payload looks like a HuggingFace tokenizer.json."""
+    model_section = payload.get("model")
+    return isinstance(model_section, dict) and "vocab" in model_section
+
+
+def _extract_vocabulary_mapping(
+    payload: dict[str, object],
+    source_path: Path,
+) -> dict[str, object]:
+    """Extract the token-to-id mapping from a flat Forge vocabulary payload."""
+    if _looks_like_flat_vocabulary(payload):
+        return payload
+    raise ForgeServeError(
+        f"Unrecognized tokenizer format at {source_path}. "
+        "Expected a Forge vocab.json (flat {{token: id}}) or "
+        "a HuggingFace tokenizer.json. Install the tokenizers library "
+        "for HuggingFace support: pip install tokenizers"
+    )
+
+
+def _looks_like_flat_vocabulary(payload: dict[str, object]) -> bool:
+    """Return True if the payload looks like a flat token-to-id mapping."""
+    for value in list(payload.values())[:5]:
+        if not isinstance(value, int):
+            return False
+    return True
+
+
+def _validate_vocabulary(
+    raw_vocab: dict[str, object],
+    source_path: Path,
+) -> VocabularyTokenizer:
+    """Validate and build a VocabularyTokenizer from a raw mapping."""
     vocabulary: dict[str, int] = {}
-    for raw_token, raw_token_id in payload.items():
+    for raw_token, raw_token_id in raw_vocab.items():
         if not isinstance(raw_token, str):
             raise ForgeServeError(
-                f"Invalid tokenizer vocabulary at {vocabulary_path}: token keys must be strings."
+                f"Invalid tokenizer vocabulary at {source_path}: token keys must be strings."
             )
         if not isinstance(raw_token_id, int):
             raise ForgeServeError(
-                f"Invalid tokenizer vocabulary at {vocabulary_path}: token id for "
+                f"Invalid tokenizer vocabulary at {source_path}: token id for "
                 f"{raw_token!r} must be an integer."
             )
         vocabulary[raw_token] = raw_token_id

@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from core.errors import ForgeServeError
 from core.types import TrainingOptions
 from serve.tokenization import VocabularyTokenizer
 from serve.training_metadata import (
     load_tokenizer,
+    load_tokenizer_from_path,
     load_training_config,
     save_tokenizer_vocabulary,
     save_training_config,
@@ -86,3 +90,66 @@ def test_load_training_config_returns_none_when_missing(tmp_path: Path) -> None:
     payload = load_training_config(str(model_path))
 
     assert payload is None
+
+
+def test_load_tokenizer_from_path_reads_valid_vocabulary(tmp_path: Path) -> None:
+    """Explicit vocabulary path should load a valid tokenizer."""
+    import json
+
+    vocab_path = tmp_path / "vocab.json"
+    vocab_path.write_text(
+        json.dumps({"<pad>": 0, "<unk>": 1, "hello": 2}), encoding="utf-8"
+    )
+
+    tokenizer = load_tokenizer_from_path(str(vocab_path))
+
+    assert tokenizer.vocabulary == {"<pad>": 0, "<unk>": 1, "hello": 2}
+
+
+def test_load_tokenizer_from_path_delegates_to_huggingface_loader(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """HuggingFace tokenizer.json should be routed to the HF loader."""
+    import json
+
+    from serve.tokenization import VocabularyTokenizer
+
+    hf_payload = {
+        "version": "1.0",
+        "model": {
+            "type": "BPE",
+            "vocab": {"hello": 0, "world": 1, "test": 2},
+        },
+    }
+    vocab_path = tmp_path / "tokenizer.json"
+    vocab_path.write_text(json.dumps(hf_payload), encoding="utf-8")
+
+    fake_tokenizer = VocabularyTokenizer(vocabulary={"hello": 0, "world": 1, "test": 2})
+    monkeypatch.setattr(
+        "serve.huggingface_tokenizer.load_huggingface_tokenizer",
+        lambda path: fake_tokenizer,
+    )
+
+    tokenizer = load_tokenizer_from_path(str(vocab_path))
+
+    assert tokenizer.vocabulary == {"hello": 0, "world": 1, "test": 2}
+
+
+def test_load_tokenizer_from_path_raises_for_missing_file(tmp_path: Path) -> None:
+    """Missing vocabulary file should raise a traceable error."""
+    missing_path = tmp_path / "nonexistent.json"
+
+    with pytest.raises(ForgeServeError, match="Tokenizer vocabulary file not found"):
+        load_tokenizer_from_path(str(missing_path))
+
+
+def test_load_tokenizer_from_path_raises_for_unrecognized_format(tmp_path: Path) -> None:
+    """Unrecognized JSON structure should produce a clear error."""
+    import json
+
+    bad_path = tmp_path / "weird.json"
+    bad_path.write_text(json.dumps({"name": "not a vocab"}), encoding="utf-8")
+
+    with pytest.raises(ForgeServeError, match="Unrecognized tokenizer format"):
+        load_tokenizer_from_path(str(bad_path))

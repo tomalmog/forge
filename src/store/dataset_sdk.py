@@ -83,7 +83,11 @@ class ForgeClient:
         return dataset.train(options)
 
     def chat(self, options: ChatOptions) -> ChatResult:
-        """Run chat inference against a trained model on a dataset.
+        """Run chat inference against a trained model.
+
+        When dataset_name is provided, loads dataset records as a tokenizer
+        fallback. When dataset_name is None, relies on a persisted or
+        explicit tokenizer path.
 
         Args:
             options: Chat inference options.
@@ -91,6 +95,8 @@ class ForgeClient:
         Returns:
             Generated response payload.
         """
+        if options.dataset_name is None:
+            return run_chat(None, options)
         dataset = self.dataset(options.dataset_name)
         return dataset.chat(options)
 

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from core.chat_types import ChatOptions
+from core.chat_types import ChatOptions, ChatTokenizer
 from core.errors import ForgeDependencyError, ForgeServeError
 from core.types import DataRecord
 from serve.chat_option_resolver import resolve_chat_tokenizer, resolve_chat_training_options
@@ -22,35 +22,35 @@ class OnnxChatContext:
 
     session: Any
     np_module: Any
-    input_name: str
+    input_names: list[str]
     output_name: str
-    tokenizer: Any
+    tokenizer: ChatTokenizer
     options: ChatOptions
     max_context_tokens: int
 
 
-def run_onnx_chat(records: list[DataRecord], options: ChatOptions) -> str:
+def run_onnx_chat(records: list[DataRecord] | None, options: ChatOptions) -> str:
     """Run one ONNX Runtime text generation call."""
     context = _build_onnx_chat_context(records, options)
     return _generate_response_text(context)
 
 
 def _build_onnx_chat_context(
-    records: list[DataRecord],
+    records: list[DataRecord] | None,
     options: ChatOptions,
 ) -> OnnxChatContext:
     model_path = _resolve_model_path(options.model_path)
     ort_module = _import_onnxruntime_optional()
     np_module = _import_numpy_optional()
     session = _build_session(ort_module, model_path)
-    input_name = _resolve_input_name(session)
+    input_names = _resolve_input_names(session)
     output_name = _resolve_output_name(session)
     training_options = resolve_chat_training_options(options, model_state={})
     tokenizer = resolve_chat_tokenizer(records, options, training_options)
     return OnnxChatContext(
         session=session,
         np_module=np_module,
-        input_name=input_name,
+        input_names=input_names,
         output_name=output_name,
         tokenizer=tokenizer,
         options=options,
@@ -101,11 +101,12 @@ def _build_session(ort_module: Any, model_path: Path) -> Any:
         ) from error
 
 
-def _resolve_input_name(session: Any) -> str:
+def _resolve_input_names(session: Any) -> list[str]:
+    """Resolve all input names declared by the ONNX model graph."""
     inputs = list(session.get_inputs())
     if not inputs:
         raise ForgeServeError("ONNX model has no inputs. Provide a valid language-model graph.")
-    return str(inputs[0].name)
+    return [str(inp.name) for inp in inputs]
 
 
 def _resolve_output_name(session: Any) -> str:
@@ -116,6 +117,8 @@ def _resolve_output_name(session: Any) -> str:
 
 
 def _generate_response_text(context: OnnxChatContext) -> str:
+    import sys
+
     options = context.options
     prompt_ids = context.tokenizer.encode(options.prompt, context.max_context_tokens)
     context_ids = prompt_ids if prompt_ids else [1]
@@ -126,16 +129,40 @@ def _generate_response_text(context: OnnxChatContext) -> str:
             break
         context_ids.append(next_token_id)
         generated_ids.append(next_token_id)
+        if options.stream:
+            token_text = context.tokenizer.decode([next_token_id])
+            sys.stdout.write(token_text)
+            sys.stdout.flush()
     if not generated_ids:
         return ""
     return str(context.tokenizer.decode(generated_ids)).strip()
+
+
+def _build_input_feed(context: OnnxChatContext, input_tensor: Any) -> dict[str, Any]:
+    """Build ONNX input feed from model-declared input names.
+
+    Always provides input_ids. Generates attention_mask (all ones) and
+    position_ids (sequential) when the model graph requires them.
+    """
+    np_module = context.np_module
+    feed: dict[str, Any] = {}
+    for name in context.input_names:
+        if name == "input_ids":
+            feed[name] = input_tensor
+        elif name == "attention_mask":
+            feed[name] = np_module.ones_like(input_tensor)
+        elif name == "position_ids":
+            seq_length = int(input_tensor.shape[1])
+            feed[name] = np_module.arange(seq_length, dtype=np_module.int64).reshape(1, -1)
+    return feed
 
 
 def _sample_next_token(context: OnnxChatContext, context_ids: list[int]) -> int:
     np_module = context.np_module
     input_ids = context_ids[-context.max_context_tokens :]
     input_tensor = np_module.asarray([input_ids], dtype=np_module.int64)
-    outputs = context.session.run([context.output_name], {context.input_name: input_tensor})
+    input_feed = _build_input_feed(context, input_tensor)
+    outputs = context.session.run([context.output_name], input_feed)
     logits = outputs[0]
     next_logits = logits[0, -1, :].astype(np_module.float64)
     temperature = context.options.temperature

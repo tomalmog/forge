@@ -24,9 +24,9 @@ def test_dataset_chat_raises_for_mismatched_dataset_name(tmp_path) -> None:
     with pytest.raises(ForgeServeError):
         dataset.chat(
             ChatOptions(
-                dataset_name="other",
                 model_path="./outputs/train/demo/model.pt",
                 prompt="hello",
+                dataset_name="other",
             )
         )
 

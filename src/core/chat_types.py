@@ -7,6 +7,7 @@ CLI, SDK, and serving layers for model chat interactions.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol, runtime_checkable
 
 from core.constants import (
     DEFAULT_CHAT_MAX_NEW_TOKENS,
@@ -28,9 +29,10 @@ from core.types import PositionEmbeddingType
 class ChatOptions:
     """Model chat command options."""
 
-    dataset_name: str
     model_path: str
     prompt: str
+    dataset_name: str | None = None
+    tokenizer_path: str | None = None
     version_id: str | None = None
     architecture_path: str | None = None
     max_new_tokens: int = DEFAULT_CHAT_MAX_NEW_TOKENS
@@ -45,6 +47,7 @@ class ChatOptions:
     dropout: float = DEFAULT_TRAIN_DROPOUT
     position_embedding_type: PositionEmbeddingType = DEFAULT_POSITION_EMBEDDING_TYPE
     vocabulary_size: int | None = None
+    stream: bool = False
 
 
 @dataclass(frozen=True)
@@ -52,3 +55,21 @@ class ChatResult:
     """Model chat response payload."""
 
     response_text: str
+
+
+@runtime_checkable
+class ChatTokenizer(Protocol):
+    """Structural interface for tokenizers used in chat inference.
+
+    Both VocabularyTokenizer and HuggingFaceTokenizer satisfy this protocol.
+    """
+
+    vocabulary: dict[str, int]
+
+    def encode(self, text: str, max_token_length: int) -> list[int]:
+        """Encode text to token ids."""
+        ...
+
+    def decode(self, token_ids: list[int]) -> str:
+        """Decode token ids back into text."""
+        ...

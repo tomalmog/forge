@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from typing import Mapping, cast
 
-from core.chat_types import ChatOptions
+from core.chat_types import ChatOptions, ChatTokenizer
+from core.errors import ForgeServeError
 from core.types import DataRecord, PositionEmbeddingType, TrainingOptions
-from serve.tokenization import VocabularyTokenizer
-from serve.training_metadata import load_tokenizer, load_training_config
+from serve.training_metadata import load_tokenizer, load_tokenizer_from_path, load_training_config
 from serve.training_setup import fit_training_tokenizer
 
 
@@ -30,14 +30,31 @@ def resolve_chat_training_options(
 
 
 def resolve_chat_tokenizer(
-    records: list[DataRecord],
+    records: list[DataRecord] | None,
     options: ChatOptions,
     training_options: TrainingOptions,
-) -> VocabularyTokenizer:
-    """Resolve tokenizer from persisted artifacts or dataset fallback."""
+) -> ChatTokenizer:
+    """Resolve tokenizer from explicit path, persisted artifacts, or dataset fallback.
+
+    Priority order:
+    1. Explicit --tokenizer-path provided by the user
+    2. Persisted vocab.json located beside the model weights
+    3. Rebuild from dataset records (requires records to be non-None)
+
+    Raises:
+        ForgeServeError: If no tokenizer source is available.
+    """
+    if options.tokenizer_path is not None:
+        return load_tokenizer_from_path(options.tokenizer_path)
     persisted_tokenizer = load_tokenizer(options.model_path)
     if persisted_tokenizer is not None:
         return persisted_tokenizer
+    if records is None:
+        raise ForgeServeError(
+            "No tokenizer found next to the model and no dataset provided. "
+            "Provide --tokenizer-path pointing to a vocab.json file, "
+            "or provide --dataset to rebuild the tokenizer from ingested data."
+        )
     return fit_training_tokenizer(records, training_options)
 
 
@@ -59,7 +76,7 @@ def resolve_chat_model_vocab_size(
 def _to_explicit_training_options(options: ChatOptions) -> TrainingOptions:
     """Build training options directly from chat overrides."""
     return TrainingOptions(
-        dataset_name=options.dataset_name,
+        dataset_name=options.dataset_name or "",
         output_dir=".",
         version_id=options.version_id,
         architecture_path=options.architecture_path,
@@ -109,7 +126,7 @@ def _to_persisted_training_options(
         payload, "architecture_path"
     )
     return TrainingOptions(
-        dataset_name=options.dataset_name,
+        dataset_name=options.dataset_name or "",
         output_dir=".",
         version_id=options.version_id,
         architecture_path=architecture_path,
@@ -150,7 +167,7 @@ def _to_inferred_training_options(
     attention_heads = _resolve_attention_heads(hidden_dim, options.attention_heads)
     vocabulary_size = options.vocabulary_size if options.vocabulary_size else inferred_vocab_size
     return TrainingOptions(
-        dataset_name=options.dataset_name,
+        dataset_name=options.dataset_name or "",
         output_dir=".",
         version_id=options.version_id,
         architecture_path=None,

@@ -33,9 +33,9 @@ def test_run_chat_raises_without_torch(monkeypatch) -> None:
 
     monkeypatch.setattr(builtins, "__import__", _patched_import)
     options = ChatOptions(
-        dataset_name="demo",
         model_path="./outputs/train/demo/model.pt",
         prompt="hello",
+        dataset_name="demo",
     )
 
     with pytest.raises(ForgeDependencyError):
@@ -56,9 +56,9 @@ def test_run_chat_routes_onnx_models_to_onnx_runner(monkeypatch) -> None:
 
     monkeypatch.setattr("serve.chat_runner.run_onnx_chat", _fake_onnx_runner)
     options = ChatOptions(
-        dataset_name="demo",
         model_path="./outputs/train/demo/model.onnx",
         prompt="hello",
+        dataset_name="demo",
     )
 
     result = run_chat(_build_records(), options)

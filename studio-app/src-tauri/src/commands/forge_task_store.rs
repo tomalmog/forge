@@ -3,7 +3,8 @@
 use crate::models::{CommandTaskStart, CommandTaskStatus};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::io::Read;
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -96,40 +97,92 @@ impl CommandTaskStore {
 
     fn execute_task(&self, task_id: String, data_root: String, command_name: String, args: Vec<String>) {
         let working_directory = workspace_root_dir();
-        let output = Command::new("forge")
+        let spawn_result = Command::new("forge")
             .current_dir(working_directory)
             .arg("--data-root")
             .arg(&data_root)
             .args(args)
-            .output();
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn();
+
+        match spawn_result {
+            Ok(mut child) => {
+                self.stream_child_output(&task_id, &mut child);
+                self.finalize_child(&task_id, &command_name, &mut child);
+            }
+            Err(error) => {
+                self.fail_task(&task_id, &command_name, error.to_string());
+            }
+        }
+    }
+
+    fn stream_child_output(&self, task_id: &str, child: &mut std::process::Child) {
+        let Some(mut stdout) = child.stdout.take() else {
+            return;
+        };
+        let mut buf = [0u8; 64];
+        loop {
+            match stdout.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let chunk = String::from_utf8_lossy(&buf[..n]).to_string();
+                    if let Ok(mut tasks) = self.inner.tasks.lock() {
+                        if let Some(task) = tasks.get_mut(task_id) {
+                            task.stdout.push_str(&chunk);
+                        }
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    }
+
+    fn finalize_child(&self, task_id: &str, command_name: &str, child: &mut std::process::Child) {
+        let exit_status = child.wait();
+        let stderr_text = child
+            .stderr
+            .take()
+            .map(|mut s| {
+                let mut buf = String::new();
+                let _ = s.read_to_string(&mut buf);
+                buf
+            })
+            .unwrap_or_default();
 
         let mut observed_elapsed_seconds = None;
         if let Ok(mut tasks) = self.inner.tasks.lock() {
-            if let Some(task) = tasks.get_mut(&task_id) {
-                match output {
-                    Ok(process_output) => {
-                        let exit_code = process_output.status.code().unwrap_or(-1);
-                        task.exit_code = Some(exit_code);
-                        task.stdout = String::from_utf8_lossy(&process_output.stdout).to_string();
-                        task.stderr = String::from_utf8_lossy(&process_output.stderr).to_string();
-                        task.status = if exit_code == 0 {
-                            TaskLifecycleStatus::Completed
-                        } else {
-                            TaskLifecycleStatus::Failed
-                        };
-                    }
-                    Err(error) => {
-                        task.exit_code = Some(-1);
-                        task.status = TaskLifecycleStatus::Failed;
-                        task.stderr = format!("Failed to run forge command: {error}");
-                    }
-                }
+            if let Some(task) = tasks.get_mut(task_id) {
+                let exit_code = exit_status
+                    .map(|s| s.code().unwrap_or(-1))
+                    .unwrap_or(-1);
+                task.exit_code = Some(exit_code);
+                task.stderr = stderr_text;
+                task.status = if exit_code == 0 {
+                    TaskLifecycleStatus::Completed
+                } else {
+                    TaskLifecycleStatus::Failed
+                };
                 observed_elapsed_seconds = Some(task.started_at.elapsed().as_secs_f64().max(1.0));
             }
         }
-
         if let Some(observed_seconds) = observed_elapsed_seconds {
-            self.update_duration_estimate(&command_name, observed_seconds);
+            self.update_duration_estimate(command_name, observed_seconds);
+        }
+    }
+
+    fn fail_task(&self, task_id: &str, command_name: &str, error_message: String) {
+        let mut observed_elapsed_seconds = None;
+        if let Ok(mut tasks) = self.inner.tasks.lock() {
+            if let Some(task) = tasks.get_mut(task_id) {
+                task.exit_code = Some(-1);
+                task.status = TaskLifecycleStatus::Failed;
+                task.stderr = format!("Failed to run forge command: {error_message}");
+                observed_elapsed_seconds = Some(task.started_at.elapsed().as_secs_f64().max(1.0));
+            }
+        }
+        if let Some(observed_seconds) = observed_elapsed_seconds {
+            self.update_duration_estimate(command_name, observed_seconds);
         }
     }
 
